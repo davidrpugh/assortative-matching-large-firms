@@ -1,10 +1,13 @@
 from __future__ import division
 
+import numpy as np
 import sympy as sym
 
 
 class Input(object):
     """Class representing a heterogenous production input."""
+
+    modules = [{'ImmutableMatrix': np.array}, "numpy"]
 
     def __init__(self, var, cdf, bounds, params):
         """
@@ -29,6 +32,38 @@ class Input(object):
         self.lower = bounds[0]
         self.upper = bounds[1]
         self.params = params
+
+        # initialice cached values
+        self.__numeric_cdf = None
+        self.__numeric_pdf = None
+
+    @property
+    def _numeric_cdf(self):
+        """
+        Vectorized function used to numerically evaluate the CDF.
+
+        :getter: Return the lambdified CDF.
+        :type: function
+
+        """
+        if self.__numeric_cdf is None:
+            args = [self.var] + sym.var(list(self.params.keys()))
+            self.__numeric_cdf = sym.lambdify(args, self.cdf)
+        return self.__numeric_cdf
+
+    @property
+    def _numeric_pdf(self):
+        """
+        Vectorized function used to numerically evaluate the pdf.
+
+        :getter: Return the lambdified pdf.
+        :type: function
+
+        """
+        if self.__numeric_pdf is None:
+            args = [self.var] + sym.var(list(self.params.keys()))
+            self.__numeric_pdf = sym.lambdify(args, self.pdf)
+        return self.__numeric_pdf
 
     @property
     def cdf(self):
@@ -63,6 +98,17 @@ class Input(object):
     def lower(self, value):
         """Set a new lower bound."""
         self._lower = self._validate_lower_bound(value)
+
+    @property
+    def norm_constant(self):
+        """
+        Constant used to normalize the probability density function (pdf).
+
+        :getter: Return the current normalization constant.
+        :type: float
+
+        """
+        return self.evaluate_cdf(self.upper) - self.evaluate_cdf(self.lower)
 
     @property
     def params(self):
@@ -140,9 +186,6 @@ class Input(object):
         if not isinstance(value, float):
             mesg = "Attribute 'lower' must have type float, not {}"
             raise AttributeError(mesg.format(value.__class__))
-        elif value > self.upper:
-            mesg = "Lower bound must be less than the upper bound!"
-            raise AttributeError(mesg)
         else:
             return value
 
@@ -160,9 +203,6 @@ class Input(object):
         if not isinstance(value, float):
             mesg = "Attribute 'upper' must have type float, not {}"
             raise AttributeError(mesg.format(value.__class__))
-        elif value < self.lower:
-            mesg = "Upper bound must be greater than the lower bound!"
-            raise AttributeError
         else:
             return value
 
@@ -175,10 +215,14 @@ class Input(object):
         else:
             return var
 
-    def evaluate_cdf(self, input):
+    def evaluate_cdf(self, value):
         """Numerically evaluate the probability distribution function (CDF)."""
-        return self.__cdf(input, **self.params)
+        return self._numeric_cdf(value, **self.params)
 
-    def evaluate_pdf(self, input):
+    def evaluate_pdf(self, value, norm=True):
         """Numerically evaluate the probability density function (pdf)."""
-        return self.__cdf(input, **self.params)
+        if norm:
+            out = self._numeric_pdf(value, **self.params) / self.norm_constant
+        else:
+            out = self._numeric_pdf(value, **self.params)
+        return out
