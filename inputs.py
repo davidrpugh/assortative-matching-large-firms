@@ -7,7 +7,7 @@ import sympy as sym
 class Input(object):
     """Class representing a heterogenous production input."""
 
-    modules = [{'ImmutableMatrix': np.array}, "numpy"]
+    modules = [{'ImmutableMatrix': np.array}, "numpy", "math"]
 
     def __init__(self, var, cdf, bounds, params):
         """
@@ -48,7 +48,7 @@ class Input(object):
         """
         if self.__numeric_cdf is None:
             args = [self.var] + sym.var(list(self.params.keys()))
-            self.__numeric_cdf = sym.lambdify(args, self.cdf)
+            self.__numeric_cdf = sym.lambdify(args, self.cdf, self.modules)
         return self.__numeric_cdf
 
     @property
@@ -62,7 +62,7 @@ class Input(object):
         """
         if self.__numeric_pdf is None:
             args = [self.var] + sym.var(list(self.params.keys()))
-            self.__numeric_pdf = sym.lambdify(args, self.pdf)
+            self.__numeric_pdf = sym.lambdify(args, self.pdf, self.modules)
         return self.__numeric_pdf
 
     @property
@@ -216,11 +216,41 @@ class Input(object):
             return var
 
     def evaluate_cdf(self, value):
-        """Numerically evaluate the probability distribution function (CDF)."""
-        return self._numeric_cdf(value, **self.params)
+        """
+        Numerically evaluate the probability distribution function (CDF).
+
+        Parameters
+        ----------
+        value : numpy.ndarray
+            Values at which to evaluate the CDF.
+
+        Returns
+        -------
+        out : numpy.ndarray
+            Evaluated CDF.
+
+        """
+        out = self._numeric_cdf(value, **self.params)
+        return out
 
     def evaluate_pdf(self, value, norm=True):
-        """Numerically evaluate the probability density function (pdf)."""
+        """
+        Numerically evaluate the probability density function (pdf).
+
+        Parameters
+        ----------
+        value : numpy.ndarray
+            Values at which to evaluate the pdf.
+        norm : boolean
+            True if you wish to normalize the pdf so that it integrates to one;
+            false otherwise.
+
+        Returns
+        -------
+        out : numpy.ndarray
+            Evaluated pdf.
+
+        """
         if norm:
             out = self._numeric_pdf(value, **self.params) / self.norm_constant
         else:
