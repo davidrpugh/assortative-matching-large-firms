@@ -82,6 +82,17 @@ class Input(object):
         self._params = self._validate_params(value)
 
     @property
+    def pdf(self):
+        """
+        Probability density function (pdf).
+
+        :getter: Return the current probability density function.
+        :type: sym.Basic
+
+        """
+        return sym.diff(self.cdf, self.var)
+
+    @property
     def upper(self):
         """
         Upper bound on support of the probability distribution function (CDF).
