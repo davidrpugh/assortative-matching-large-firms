@@ -6,25 +6,28 @@ import sympy as sym
 class Input(object):
     """Class representing a heterogenous production input."""
 
-    def __init__(self, bounds, cdf, params):
+    def __init__(self, var, cdf, bounds, params):
         """
         Create an instance of the Input class.
 
         Parameters
         ----------
-        bounds : list
-            List containing the lower and uppoer bounds on the support of the
-            probability distribution.
+        var : sym.Symbol
+            Symbolic variable representing the production input.
         cdf : sym.Basic
             Symbolic expression defining a valid probability distribution
-            function (CDF).
+            function (CDF). Must be a function of var.
+        bounds : list
+            List containing the lower and upper bounds on the support of the
+            probability distribution function (CDF).
         params : dict
             Dictionary of distribution parameters.
 
         """
+        self.var = var
+        self.cdf = cdf
         self.lower = bounds[0]
         self.upper = bounds[1]
-        self.cdf = cdf
         self.params = params
 
     @property
@@ -95,6 +98,23 @@ class Input(object):
         """Set a new upper bound."""
         self._upper = self._validate_upper_bound(value)
 
+    @property
+    def var(self):
+        """
+        Symbolic variable respresenting the production input.
+
+        :getter: Return the current variable.
+        :setter: Set a new variable.
+        :type: sym.Symbol
+
+        """
+        return self._var
+
+    @var.setter
+    def var(self, value):
+        """Set a new symbolic variable."""
+        self._var = self._validate_var(value)
+
     @staticmethod
     def _validate_cdf(cdf):
         """Validates the probability distribution function (CDF)."""
@@ -134,3 +154,12 @@ class Input(object):
             raise AttributeError
         else:
             return value
+
+    @staticmethod
+    def _validate_var(var):
+        """Validates the symbolic variable."""
+        if not isinstance(var, sym.Symbol):
+            mesg = "Attribute 'var' must have type sympy.Symbol, not {}"
+            raise AttributeError(mesg.format(var.__class__))
+        else:
+            return var
