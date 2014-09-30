@@ -3,6 +3,9 @@ import sympy as sym
 # define symbolic variables
 l, r, x, y = sym.var('l, r, x, y')
 
+# should really use letters for variables!
+mu, theta = sym.var('theta, mu')
+
 
 class Model(object):
     """Class representing a matching model with two-sided heterogeneity."""
@@ -143,3 +146,27 @@ class DifferentiableMatching(object):
             raise AttributeError(mesg.format(model.__class__))
         else:
             return model
+
+
+class NegativeAssortativeMatching(DifferentiableMatching):
+    """Class representing a model with negative assortative matching."""
+
+    @property
+    def mu_prime(self):
+        return -self.H / theta
+
+    @property
+    def theta_prime(self):
+        return -(self.H * self.model.Fyl + self.model.Fxr) / self.model.Flr
+
+
+class PositiveAssortativeMatching(DifferentiableMatching):
+    """Class representing a model with positive assortative matching."""
+
+    @property
+    def mu_prime(self):
+        return self.H / theta
+
+    @property
+    def theta_prime(self):
+        return (self.H * self.model.Fyl - self.model.Fxr) / self.model.Flr
