@@ -65,6 +65,8 @@ class Model(object):
         if not isinstance(params, dict):
             mesg = "Attribute 'params' must have type dict, not {}."
             raise AttributeError(mesg.format(params.__class__))
+        else:
+            return params
 
     @staticmethod
     def _validate_production_function(F):
