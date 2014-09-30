@@ -1,3 +1,10 @@
+"""
+Test functions for the inputs.py module.
+
+@author : David R. Pugh
+@date : 2014-09-30
+
+"""
 import nose
 
 import numpy as np

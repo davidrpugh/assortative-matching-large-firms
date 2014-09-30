@@ -1,3 +1,10 @@
+"""
+Classes for modeling heterogenous factors of production.
+
+@author : David R. Pugh
+@date : 2014-09-30
+
+"""
 from __future__ import division
 
 import numpy as np
