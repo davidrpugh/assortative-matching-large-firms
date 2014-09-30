@@ -174,3 +174,11 @@ class Input(object):
             raise AttributeError(mesg.format(var.__class__))
         else:
             return var
+
+    def evaluate_cdf(self, input):
+        """Numerically evaluate the probability distribution function (CDF)."""
+        return self.__cdf(input, **self.params)
+
+    def evaluate_pdf(self, input):
+        """Numerically evaluate the probability density function (pdf)."""
+        return self.__cdf(input, **self.params)
