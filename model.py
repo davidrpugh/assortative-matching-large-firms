@@ -1,5 +1,8 @@
 import sympy as sym
 
+# define symbolic variables
+l, r, x, y = sym.var('l, r, x, y')
+
 
 class Model(object):
     """Class representing a matching model with two-sided heterogeneity."""
@@ -18,6 +21,9 @@ class Model(object):
         """
         self.F = production_function
         self.params = params
+
+        # pass the instance as an argument
+        self.matching = DifferentiableMatching(self)
 
     @property
     def F(self):
@@ -66,16 +72,19 @@ class Model(object):
         if not isinstance(F, sym.Basic):
             mesg = "Attribute 'F' must have type sympy.Basic, not {}."
             raise AttributeError(mesg.format(F.__class__))
+        elif not {l, r} < F.atoms():
+            mesg = "Attribute 'F' must be an expression of r and l."
+            raise AttributeError(mesg)
         else:
             return F
 
 
-class ODE(object):
+class DifferentiableMatching(object):
     """Class representing a system of ordinary differential equations (ODEs)."""
 
     def __init__(self, model):
         """
-        Create an instance of the ODE class.
+        Create an instance of the DifferentiableMatching class.
 
         Parameters
         model : model.Model
@@ -84,6 +93,18 @@ class ODE(object):
 
         """
         self.model = model
+
+    @property
+    def Flr(self):
+        return sym.diff(self.model.F, l, r)
+
+    @property
+    def Fxr(self):
+        return sym.diff(self.model.F, x, r)
+
+    @property
+    def Fyl(self):
+        return sym.diff(self.model.F, y, l)
 
     @property
     def model(self):
