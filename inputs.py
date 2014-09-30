@@ -99,16 +99,19 @@ class Input(object):
     def _validate_cdf(cdf):
         """Validates the probability distribution function (CDF)."""
         if not isinstance(cdf, sym.Basic):
-            raise AttributeError
+            mesg = "Attribute 'cdf' must have type sympy.Basic, not {}"
+            raise AttributeError(mesg.format(cdf.__class__))
         else:
             return cdf
 
     def _validate_lower_bound(self, value):
         """Validate the lower bound on the suppport of the CDF."""
         if not isinstance(value, float):
-            raise AttributeError
+            mesg = "Attribute 'lower' must have type float, not {}"
+            raise AttributeError(mesg.format(value.__class__))
         elif value > self.upper:
-            raise AttributeError
+            mesg = "Lower bound must be less than the upper bound!"
+            raise AttributeError(mesg)
         else:
             return value
 
@@ -116,15 +119,18 @@ class Input(object):
     def _validate_params(value):
         """Validate the dictionary of parameters."""
         if not isinstance(value, dict):
-            raise AttributeError
+            mesg = "Attribute 'params' must have type dict, not {}"
+            raise AttributeError(mesg.format(value.__class__))
         else:
             return value
 
     def _validate_upper_bound(self, value):
         """Validate the upper bound on the suppport of the CDF."""
         if not isinstance(value, float):
-            raise AttributeError
+            mesg = "Attribute 'upper' must have type float, not {}"
+            raise AttributeError(mesg.format(value.__class__))
         elif value < self.lower:
+            mesg = "Upper bound must be greater than the lower bound!"
             raise AttributeError
         else:
             return value
