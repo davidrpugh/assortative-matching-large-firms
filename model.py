@@ -66,6 +66,8 @@ class Model(object):
         if not isinstance(F, sym.Basic):
             mesg = "Attribute 'F' must have type sympy.Basic, not {}."
             raise AttributeError(mesg.format(F.__class__))
+        else:
+            return F
 
 
 class ODE(object):
@@ -82,4 +84,30 @@ class ODE(object):
 
         """
         self.model = model
-    
+
+    @property
+    def model(self):
+        """
+        Instance of the model.Model class representing a matching model
+        with two-sided heterogeneity.
+
+        :getter: Return the current model.Model instance.
+        :setter: Set a new model.Model instance
+        :type: model.Model
+
+        """
+        return self._model
+
+    @model.setter
+    def model(self, model):
+        """Set a new model.Model instance."""
+        self._model = self._validate_model(model)
+
+    @staticmethod
+    def _validate_model(model):
+        """Validates the model attribute."""
+        if not isinstance(model, Model):
+            mesg = "Attribute 'model' must have type model.Model, not {}."
+            raise AttributeError(mesg.format(model.__class__))
+        else:
+            return model
