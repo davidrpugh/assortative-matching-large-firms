@@ -44,6 +44,40 @@ class Input(object):
         """Set a new probability distribution function."""
         self._distribution = self._validate_distribution(value)
 
+    @property
+    def lower(self):
+        """
+        Lower bound on support of the probability distribution function (CDF).
+
+        :getter: Return the lower bound.
+        :setter: Set a new lower bound.
+        :type: float
+
+        """
+        return self._lower
+
+    @lower.setter
+    def lower(self, value):
+        """Set a new lower bound."""
+        self._lower = self._validate_lower_bound(value)
+
+    @property
+    def upper(self):
+        """
+        Upper bound on support of the probability distribution function (CDF).
+
+        :getter: Return the lower bound.
+        :setter: Set a new lower bound.
+        :type: float
+
+        """
+        return self._upper
+
+    @upper.setter
+    def upper(self, value):
+        """Set a new upper bound."""
+        self._upper = self._validate_upper_bound(value)
+
     @staticmethod
     def _validate_distribution(cdf):
         """Validates the probability distribution function."""
@@ -51,3 +85,17 @@ class Input(object):
             raise AttributeError
         else:
             return cdf
+
+    def _validate_lower_bound(self, value):
+        """Validate the lower bound on the suppport of the CDF."""
+        if not isinstance(value, float):
+            raise AttributeError
+        elif value > self.upper:
+            raise AttributeError
+
+    def _validate_upper_bound(self, value):
+        """Validate the upper bound on the suppport of the CDF."""
+        if not isinstance(value, float):
+            raise AttributeError
+        elif value < self.lower:
+            raise AttributeError
