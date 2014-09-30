@@ -22,9 +22,6 @@ class Model(object):
         self.F = production_function
         self.params = params
 
-        # pass the instance as an argument
-        self.matching = DifferentiableMatching(self)
-
     @property
     def F(self):
         """
@@ -41,6 +38,18 @@ class Model(object):
     def F(self, value):
         """Set a new production function."""
         self._F = self._validate_production_function(value)
+
+    @property
+    def Flr(self):
+        return sym.diff(self.F, l, r)
+
+    @property
+    def Fxr(self):
+        return sym.diff(self.F, x, r)
+
+    @property
+    def Fyl(self):
+        return sym.diff(self.F, y, l)
 
     @property
     def params(self):
@@ -82,7 +91,7 @@ class Model(object):
 
 
 class DifferentiableMatching(object):
-    """Class representing a system of ordinary differential equations (ODEs)."""
+    """Base class representing a differentiable matching system of ODEs."""
 
     def __init__(self, model):
         """
@@ -95,18 +104,6 @@ class DifferentiableMatching(object):
 
         """
         self.model = model
-
-    @property
-    def Flr(self):
-        return sym.diff(self.model.F, l, r)
-
-    @property
-    def Fxr(self):
-        return sym.diff(self.model.F, x, r)
-
-    @property
-    def Fyl(self):
-        return sym.diff(self.model.F, y, l)
 
     @property
     def model(self):
