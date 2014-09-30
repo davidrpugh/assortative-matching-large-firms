@@ -44,14 +44,35 @@ class Model(object):
 
     @property
     def Flr(self):
+        """
+        Symbolic expression for the quantities complementarity.
+
+        :getter: Return the expression for the quantities complementarity.
+        :type: sympy.Basic
+
+        """
         return sym.diff(self.F, l, r)
 
     @property
     def Fxr(self):
+        """
+        Symbolic expression for the managerial resource complementarity.
+
+        :getter: Return the expression for managerial resource complementarity.
+        :type: sympy.Basic
+
+        """
         return sym.diff(self.F, x, r)
 
     @property
     def Fyl(self):
+        """
+        Symbolic expression for the span-of-control complementarity.
+
+        :getter: Return the expression for the span-of-control complementarity.
+        :type: sympy.Basic
+
+        """
         return sym.diff(self.F, y, l)
 
     @property
