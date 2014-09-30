@@ -66,4 +66,20 @@ class Model(object):
         if not isinstance(F, sym.Basic):
             mesg = "Attribute 'F' must have type sympy.Basic, not {}."
             raise AttributeError(mesg.format(F.__class__))
+
+
+class ODE(object):
+    """Class representing a system of ordinary differential equations (ODEs)."""
+
+    def __init__(self, model):
+        """
+        Create an instance of the ODE class.
+
+        Parameters
+        model : model.Model
+            Instance of the model.Model class representing a matching model
+            with two-sided heterogeneity.
+
+        """
+        self.model = model
     
