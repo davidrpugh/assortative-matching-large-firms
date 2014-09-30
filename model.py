@@ -106,6 +106,10 @@ class DifferentiableMatching(object):
         self.model = model
 
     @property
+    def H(self):
+        raise NotImplementedError
+
+    @property
     def model(self):
         """
         Instance of the model.Model class representing a matching model
@@ -122,6 +126,14 @@ class DifferentiableMatching(object):
     def model(self, model):
         """Set a new model.Model instance."""
         self._model = self._validate_model(model)
+
+    @property
+    def mu_prime(self):
+        raise NotImplementedError
+
+    @property
+    def theta_prime(self):
+        raise NotImplementedError
 
     @staticmethod
     def _validate_model(model):
