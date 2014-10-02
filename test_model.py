@@ -5,51 +5,80 @@ Test suite for the model.py module.
 @date : 2014-09-30
 
 """
+import nose
 
-        
-        
-if __name__ == '__main__':
-    import numpy as np
-    from scipy import stats
+import sympy as sym
 
-    from inputs import Input
+import inputs
+import model
 
-    params = {'nu':0.89, 'kappa':1.0, 'gamma':0.54, 'rho':0.24, 'A':1.0}
+# define some workers skill
+x, mu1, sigma1 = sym.var('x, mu1, sigma1')
+skill_cdf = 0.5 + 0.5 * sym.erf((sym.log(x) - mu1) / sym.sqrt(2 * sigma1**2))
+skill_params = {'mu1': 0.0, 'sigma1': 1.0}
+skill_bounds = [1e-3, 5e1]
 
-    sym.var('A, kappa, nu, x, rho, y, l, gamma, r')
-    F = r * A * kappa * (nu * x**rho + (1 - nu) * (y * (l / r))**rho)**(gamma / rho)
+workers = inputs.Input(var=x,
+                       cdf=skill_cdf,
+                       params=skill_params,
+                       bounds=skill_bounds,
+                       )
 
-    # suppose worker skill is log normal
-    sp.var('x, mu, sigma')
-    skill_cdf = 0.5 + 0.5 * sp.erf((sp.log(x) - mu) / sp.sqrt(2 * sigma**2))
-    worker_params = {'mu':0.0, 'sigma':1}
-    x_lower, x_upper, x_measure = 1e-3, 5e1, 0.025
-    
-    workers = Input(distribution=skill_cdf,
-                    lower_bound=x_lower,
-                    params=worker_params,
-                    upper_bound=x_upper,
-                   )
+# define some firms
+y, mu2, sigma2 = sym.var('y, mu2, sigma2')
+productivity_cdf = 0.5 + 0.5 * sym.erf((sym.log(y) - mu2) / sym.sqrt(2 * sigma2**2))
+productivity_params = {'mu2': 0.0, 'sigma2': 1.0}
+productivity_bounds = [1e-3, 5e1]
 
-    # suppose firm productivity is log normal
-    sp.var('x, mu, sigma')
-    productivity_cdf = 0.5 + 0.5 * sp.erf((sp.log(x) - mu) / sp.sqrt(2 * sigma**2))
-    firm_params = {'mu':0.0, 'sigma':1}
-    y_lower, y_upper, y_measure = 1e-3, 5e1, 0.025
-    
-    firms = Input(distribution=productivity_cdf,
-                  lower_bound=x_lower,
-                  params=firm_params,
-                  upper_bound=x_upper,
-                  )
+firms = inputs.Input(var=y,
+                     cdf=productivity_cdf,
+                     params=productivity_params,
+                     bounds=productivity_bounds,
+                     )
 
-    # create an instance of the Model class
-    model = Model(firms=firms,
-                  matching='PAM',
-                  output=F,
-                  params=params,
-                  workers=workers
-                  )
+# define some valid model params
+valid_params = {'nu': 0.89, 'kappa': 1.0, 'gamma': 0.54, 'rho': 0.24, 'A': 1.0}
 
-    print(model._numeric_jacobian(x_upper, 1e2, y_upper))
-    print(model._numeric_ode_system(x_upper, 1e2, y_upper))
+# define a valid production function
+A, kappa, nu, rho, l, gamma, r = sym.var('A, kappa, nu, rho, l, gamma, r')
+valid_F = r * A * kappa * (nu * x**rho + (1 - nu) * (y * (l / r))**rho)**(gamma / rho)
+
+
+def test_validate_production_function():
+    """Testing validation of production function attribute."""
+
+    # production function must have type sym.Basic
+    def invalid_F(x, y, l, r, A, kappa, nu, rho, gamma):
+        """Valid F must return a SymPy expression."""
+        return r * A * kappa * (nu * x**rho + (1 - nu) * (y * (l / r))**rho)**(gamma / rho)
+
+    with nose.tools.assert_raises(AttributeError):
+        model.Model(workers, firms, production_function=invalid_F,
+                    params=valid_params)
+
+    # production function must share vars with workers and firms
+    m, n = sym.var('m, n')
+    invalid_F = r * A * kappa * (nu * m**rho + (1 - nu) * (n * (l / r))**rho)**(gamma / rho)
+
+    with nose.tools.assert_raises(AttributeError):
+        model.Model(workers, firms, production_function=invalid_F,
+                    params=valid_params)
+
+    # production function must depend on r and l
+    m, n = sym.var('m, n')
+    invalid_F = r * A * kappa * (nu * x**rho + (1 - nu) * (y * (m / n))**rho)**(gamma / rho)
+
+    with nose.tools.assert_raises(AttributeError):
+        model.Model(workers, firms, production_function=invalid_F,
+                    params=valid_params)
+
+# # create an instance of the Model class
+# model = Model(firms=firms,
+#               matching='PAM',
+#               output=F,
+#               params=params,
+#               workers=workers
+#               )
+
+# print(model._numeric_jacobian(x_upper, 1e2, y_upper))
+# print(model._numeric_ode_system(x_upper, 1e2, y_upper))

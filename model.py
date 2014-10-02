@@ -1,7 +1,9 @@
 import sympy as sym
 
+import inputs
+
 # define symbolic variables
-l, r, x, y = sym.var('l, r, x, y')
+l, r = sym.var('l, r')
 
 # should really use letters for variables!
 mu, theta = sym.var('theta, mu')
@@ -10,18 +12,26 @@ mu, theta = sym.var('theta, mu')
 class Model(object):
     """Class representing a matching model with two-sided heterogeneity."""
 
-    def __init__(self, production_function, params):
+    def __init__(self, workers, firms, production_function, params):
         """
         Create an instance of the Model class.
 
         Parameters
         ----------
+        workers : inputs.Input
+            Instance of the inputs.Input class defining workers with
+            heterogeneous skill levels.
+        firms : inputs.Input
+            Instance of the inputs.Input class defining firms with
+            heterogeneous productivity.
         production_function : sym.Basic
             Symbolic expression describing the production technology.
         params : dict
             Dictionary of model parameters.
 
         """
+        self.workers = workers
+        self.firms = firms
         self.F = production_function
         self.params = params
 
@@ -43,6 +53,24 @@ class Model(object):
         self._F = self._validate_production_function(value)
 
     @property
+    def firms(self):
+        """
+        Instance of the inputs.Input class describing firms with heterogeneous
+        productivity.
+
+        :getter: Return current firms.
+        :setter: Set new firms.
+        :type: inputs.Input
+
+        """
+        return self._firms
+
+    @firms.setter
+    def firms(self, value):
+        """Set new firms."""
+        self._firms = self._validate_input(value)
+
+    @property
     def Flr(self):
         """
         Symbolic expression for the quantities complementarity.
@@ -62,7 +90,7 @@ class Model(object):
         :type: sympy.Basic
 
         """
-        return sym.diff(self.F, x, r)
+        return sym.diff(self.F, self.workers.var, r)
 
     @property
     def Fyl(self):
@@ -73,7 +101,7 @@ class Model(object):
         :type: sympy.Basic
 
         """
-        return sym.diff(self.F, y, l)
+        return sym.diff(self.F, self.firms.var, l)
 
     @property
     def params(self):
@@ -92,6 +120,34 @@ class Model(object):
         """Set a new parameter dictionary."""
         self._params = self._validate_params(value)
 
+    @property
+    def workers(self):
+        """
+        Instance of the inputs.Input class describing workers with
+        heterogeneous skill.
+
+        :getter: Return current workers.
+        :setter: Set new workers.
+        :type: inputs.Input
+
+        """
+        return self._workers
+
+    @workers.setter
+    def workers(self, value):
+        """Set new workers."""
+        self._workers = self._validate_input(value)
+
+    @staticmethod
+    def _validate_input(value):
+        """Validates the worker and firm attributes."""
+        if not isinstance(value, inputs.Input):
+            mesg = ("Attributes 'workers' and 'firms' must have " +
+                    "type inputs.Input, not {}.")
+            raise AttributeError(mesg.format(value.__class__))
+        else:
+            return value
+
     @staticmethod
     def _validate_params(params):
         """Validates the dictionary of model parameters."""
@@ -101,14 +157,17 @@ class Model(object):
         else:
             return params
 
-    @staticmethod
-    def _validate_production_function(F):
+    def _validate_production_function(self, F):
         """Validates the production function attribute."""
         if not isinstance(F, sym.Basic):
             mesg = "Attribute 'F' must have type sympy.Basic, not {}."
             raise AttributeError(mesg.format(F.__class__))
         elif not {l, r} < F.atoms():
             mesg = "Attribute 'F' must be an expression of r and l."
+            raise AttributeError(mesg)
+        elif not {self.workers.var, self.firms.var} < F.atoms():
+            mesg = ("Attribute 'F' must be an expression of workers.var and " +
+                    "firm.var variables.")
             raise AttributeError(mesg)
         else:
             return F
