@@ -5,8 +5,8 @@ import inputs
 # define symbolic variables
 l, r = sym.var('l, r')
 
-# should really use letters for variables!
-mu, theta = sym.var('theta, mu')
+# should really use letters for variables so as not to confound with params!
+mu, theta = sym.var('mu, theta')
 
 
 class Model(object):
