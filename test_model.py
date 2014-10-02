@@ -53,7 +53,7 @@ def test_validate_production_function():
         return r * A * kappa * (nu * x**rho + (1 - nu) * (y * (l / r))**rho)**(gamma / rho)
 
     with nose.tools.assert_raises(AttributeError):
-        model.Model(workers, firms, production_function=invalid_F,
+        model.Model('positive', workers, firms, production=invalid_F,
                     params=valid_params)
 
     # production function must share vars with workers and firms
@@ -61,7 +61,7 @@ def test_validate_production_function():
     invalid_F = r * A * kappa * (nu * m**rho + (1 - nu) * (n * (l / r))**rho)**(gamma / rho)
 
     with nose.tools.assert_raises(AttributeError):
-        model.Model(workers, firms, production_function=invalid_F,
+        model.Model('negative', workers, firms, production=invalid_F,
                     params=valid_params)
 
     # production function must depend on r and l
@@ -69,16 +69,8 @@ def test_validate_production_function():
     invalid_F = r * A * kappa * (nu * x**rho + (1 - nu) * (y * (m / n))**rho)**(gamma / rho)
 
     with nose.tools.assert_raises(AttributeError):
-        model.Model(workers, firms, production_function=invalid_F,
+        model.Model('positive', workers, firms, production=invalid_F,
                     params=valid_params)
 
 # # create an instance of the Model class
-# model = Model(firms=firms,
-#               matching='PAM',
-#               output=F,
-#               params=params,
-#               workers=workers
-#               )
-
-# print(model._numeric_jacobian(x_upper, 1e2, y_upper))
-# print(model._numeric_ode_system(x_upper, 1e2, y_upper))
+# mod = model.Model('positive', workers, firms, valid_F, valid_params)
