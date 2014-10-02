@@ -125,6 +125,21 @@ class Model(object):
         return sym.diff(self.F, self.firms.var, l)
 
     @property
+    def matching(self):
+        """
+        Instance of the DifferentiableMatching class describing the matching
+        equilibrium.
+
+        :getter: Return the current DifferentiableMatching instance.
+        :type: DifferentiableMatching
+
+        """
+        if self.assortativity == 'positive':
+            return PositiveAssortativeMatching(self)
+        else:
+            return NegativeAssortativeMatching(self)
+
+    @property
     def params(self):
         """
         Dictionary of model parameters.
