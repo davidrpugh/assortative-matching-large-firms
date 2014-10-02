@@ -12,28 +12,49 @@ mu, theta = sym.var('theta, mu')
 class Model(object):
     """Class representing a matching model with two-sided heterogeneity."""
 
-    def __init__(self, workers, firms, production_function, params):
+    def __init__(self, assortativity, workers, firms, production, params):
         """
         Create an instance of the Model class.
 
         Parameters
         ----------
+        assortativity : str
+            String defining the type of matching assortativity. Must be one of
+            'positive' or 'negative'.
         workers : inputs.Input
             Instance of the inputs.Input class defining workers with
             heterogeneous skill levels.
         firms : inputs.Input
             Instance of the inputs.Input class defining firms with
             heterogeneous productivity.
-        production_function : sym.Basic
+        production : sympy.Basic
             Symbolic expression describing the production technology.
         params : dict
             Dictionary of model parameters.
 
         """
+        self.assortativity = assortativity
         self.workers = workers
         self.firms = firms
-        self.F = production_function
+        self.F = production
         self.params = params
+
+    @property
+    def assortativity(self):
+        """
+        String defining the matching assortativty.
+
+        :getter: Return the current matching assortativity
+        :setter: Set a new matching assortativity.
+        :type: str
+
+        """
+        return self._assortativity
+
+    @assortativity.setter
+    def assortativity(self, value):
+        """Set new matching assortativity."""
+        self._assortativity = self._validate_assortativity(value)
 
     @property
     def F(self):
@@ -42,7 +63,7 @@ class Model(object):
 
         :getter: Return the current production function.
         :setter: Set a new production function.
-        :type: sym.Basic
+        :type: sympy.Basic
 
         """
         return self._F
@@ -139,6 +160,19 @@ class Model(object):
         self._workers = self._validate_input(value)
 
     @staticmethod
+    def _validate_assortativity(value):
+        """Validates the matching assortativity."""
+        valid_assortativities = ['positive', 'negative']
+        if not isinstance(value, str):
+            mesg = "Attribute 'assortativity' must have type str, not {}."
+            raise AttributeError(mesg.format(value.__class__))
+        elif value not in valid_assortativities:
+            mesg = "Attribute 'assortativity' must be in {}."
+            raise AttributeError(mesg.format(valid_assortativities))
+        else:
+            return value
+
+    @staticmethod
     def _validate_input(value):
         """Validates the worker and firm attributes."""
         if not isinstance(value, inputs.Input):
@@ -190,7 +224,15 @@ class DifferentiableMatching(object):
 
     @property
     def H(self):
-        raise NotImplementedError
+        """
+        Ratio of worker probability density to firm probability density.
+
+        :getter: Return current density ratio.
+        :type: sympy.Basic
+
+        """
+        tmp_subs = {self.model.firms.var: mu}
+        return self.model.workers.pdf / self.model.firms.pdf.subs(tmp_subs)
 
     @property
     def model(self):
