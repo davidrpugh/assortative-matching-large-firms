@@ -62,11 +62,11 @@ class Workers(object):
         
     def scaled_pdf(self, x):
         """Scaled probability density function for worker type/skill."""
-        return (1.0/self.scaling_factor) * self.dist.pdf(x)
+        return self.scaling_factor * self.dist.pdf(x)
         
     def scaled_cdf(self, x):
         """Scaled probability distribution function for worker type/skill."""
-        cdf = ((1.0/self.scaling_factor) * (self.dist.cdf(x) - 
+        cdf = (self.scaling_factor * (self.dist.cdf(x) - 
                                       self.dist.cdf(self.lower_bound)))
         return cdf 
         
@@ -132,11 +132,11 @@ class Firms(object):
         
     def scaled_pdf(self, x):
         """Scaled probability density function for firm productivity."""
-        return (1.0/self.scaling_factor) * self.dist.pdf(x)
+        return self.scaling_factor * self.dist.pdf(x)
         
     def scaled_cdf(self, x):
         """Scaled probability distribution function for firm productivity."""
-        cdf = ((1.0/self.scaling_factor) * (self.dist.cdf(x) - 
+        cdf = (self.scaling_factor * (self.dist.cdf(x) - 
                                       self.dist.cdf(self.lower_bound)))
         return cdf
         
