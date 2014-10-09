@@ -12,6 +12,9 @@ import sympy as sym
 import inputs
 import model
 
+# define endogenous variables
+mu, theta = sym.var('mu, theta')
+
 # define some workers skill
 x, mu1, sigma1 = sym.var('x, mu1, sigma1')
 skill_cdf = 0.5 + 0.5 * sym.erf((sym.log(x) - mu1) / sym.sqrt(2 * sigma1**2))
@@ -44,6 +47,17 @@ A, kappa, nu, rho, l, gamma, r = sym.var('A, kappa, nu, rho, l, gamma, r')
 valid_F = r * A * kappa * (nu * x**rho + (1 - nu) * (y * (l / r))**rho)**(gamma / rho)
 
 
+def test_validate_assortativity():
+    """Testing validation of assortativity attribute."""
+
+    # assortativity must be either 'positive' or 'negative'
+    invalid_assortativity = 'invalid_assortativity'
+
+    with nose.tools.assert_raises(AttributeError):
+        model.Model(invalid_assortativity, workers, firms, valid_F,
+                    valid_params)
+
+
 def test_validate_production_function():
     """Testing validation of production function attribute."""
 
@@ -72,5 +86,26 @@ def test_validate_production_function():
         model.Model('positive', workers, firms, production=invalid_F,
                     params=valid_params)
 
-# # create an instance of the Model class
-# mod = model.Model('positive', workers, firms, valid_F, valid_params)
+
+def test_mu_prime():
+    """Testing symbolic expression for matching differential equation."""
+    mod = model.Model('positive', workers, firms, valid_F, valid_params)
+
+    # y, l, and r should not appear in either mu_prime or theta_prime
+    for var in [y, l, r]:
+        nose.tools.assert_false(var in mod.matching.mu_prime.atoms())
+
+    # mu and theta should appear in both mu_prime or theta_prime
+    nose.tools.assert_true({mu, theta} < mod.matching.mu_prime.atoms())
+
+
+def test_theta_prime():
+    """Testing symbolic expression for firm size differential equation."""
+    mod = model.Model('negative', workers, firms, valid_F, valid_params)
+
+    # y, l, and r should not appear in either mu_prime or theta_prime
+    for var in [y, l, r]:
+        nose.tools.assert_false(var in mod.matching.theta_prime.atoms())
+
+    # mu and theta should appear in both mu_prime or theta_prime
+    nose.tools.assert_true({mu, theta} < mod.matching.theta_prime.atoms())

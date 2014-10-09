@@ -238,6 +238,17 @@ class DifferentiableMatching(object):
         self.model = model
 
     @property
+    def _subs(self):
+        """
+        Dictionary of variable substitutions
+
+        :getter: Return the current dictionary of substitutions.
+        :type: dict
+
+        """
+        return {self.model.firms.var: mu, l: theta, r: 1.0}
+
+    @property
     def H(self):
         """
         Ratio of worker probability density to firm probability density.
@@ -246,8 +257,7 @@ class DifferentiableMatching(object):
         :type: sympy.Basic
 
         """
-        tmp_subs = {self.model.firms.var: mu}
-        return self.model.workers.pdf / self.model.firms.pdf.subs(tmp_subs)
+        return self.model.workers.pdf / self.model.firms.pdf
 
     @property
     def model(self):
@@ -290,11 +300,13 @@ class NegativeAssortativeMatching(DifferentiableMatching):
 
     @property
     def mu_prime(self):
-        return -self.H / theta
+        expr = -self.H / theta
+        return expr.subs(self._subs)
 
     @property
     def theta_prime(self):
-        return -(self.H * self.model.Fyl + self.model.Fxr) / self.model.Flr
+        expr = -(self.H * self.model.Fyl + self.model.Fxr) / self.model.Flr
+        return expr.subs(self._subs)
 
 
 class PositiveAssortativeMatching(DifferentiableMatching):
@@ -302,8 +314,10 @@ class PositiveAssortativeMatching(DifferentiableMatching):
 
     @property
     def mu_prime(self):
-        return self.H / theta
+        expr = self.H / theta
+        return expr.subs(self._subs)
 
     @property
     def theta_prime(self):
-        return (self.H * self.model.Fyl - self.model.Fxr) / self.model.Flr
+        expr = (self.H * self.model.Fyl - self.model.Fxr) / self.model.Flr
+        return expr.subs(self._subs)
