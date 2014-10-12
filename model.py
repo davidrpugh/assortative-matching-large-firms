@@ -96,7 +96,8 @@ class Model(object):
         """
         Symbolic expression for the marginal product of worker skill.
 
-        :getter: Return the expression for the the marginal product of worker skill.
+        :getter: Return the expression for the the marginal product of worker
+        skill.
         :type: sympy.Basic
 
         """
@@ -271,6 +272,18 @@ class DifferentiableMatching(object):
         return {self.model.firms.var: mu, l: theta, r: 1.0}
 
     @property
+    def f(self):
+        """
+        Symbolic expression for intensive output.
+
+        :getter: Return the current expression for intensive output.
+        :type: sympy.Basic.
+
+        """
+        expr = (1 / r) * self.model.F
+        return expr.subs(self._subs)
+
+    @property
     def H(self):
         """
         Ratio of worker probability density to firm probability density.
@@ -306,6 +319,17 @@ class DifferentiableMatching(object):
     @property
     def theta_prime(self):
         raise NotImplementedError
+
+    @property
+    def w(self):
+        """
+        Symbolic expression for wages paid to workers.
+
+        :getter: Return the current expression for wages.
+        :type: sympy.Basic.
+
+        """
+        return sym.diff(self.f, theta)
 
     @staticmethod
     def _validate_model(model):
