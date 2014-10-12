@@ -92,6 +92,17 @@ class Model(object):
         self._firms = self._validate_input(value)
 
     @property
+    def Fx(self):
+        """
+        Symbolic expression for the marginal product of worker skill.
+
+        :getter: Return the expression for the the marginal product of worker skill.
+        :type: sympy.Basic
+
+        """
+        return sym.diff(self.F, self.workers.var)
+
+    @property
     def Fxy(self):
         """
         Symbolic expression for the skill complementarity.
