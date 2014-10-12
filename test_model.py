@@ -87,6 +87,7 @@ def test_validate_production_function():
         model.Model('positive', workers, firms, production=invalid_F,
                     params=valid_params)
 
+
 def test_validate_params():
     """Testing validation of parameters attribute."""
 
@@ -97,6 +98,7 @@ def test_validate_params():
         model.Model('positive', workers, firms, production=valid_F,
                     params=invalid_params)
 
+
 def test__validate_input():
     """Testing validation of inputs."""
 
@@ -105,8 +107,33 @@ def test__validate_input():
     invalid_firms = stats.lognorm(s=1.0)
 
     with nose.tools.assert_raises(AttributeError):
-        model.Model('positive', invalid_workers, invalid_firms, production=valid_F,
-                    params=valid_params)
+        model.Model('positive', invalid_workers, invalid_firms,
+                    production=valid_F, params=valid_params)
+
+
+def test_intensive_output():
+    """Testing symbolic expression for intensive output."""
+    mod = model.Model('positive', workers, firms, valid_F, valid_params)
+
+    # y, l, and r should not appear in intensive output
+    for var in [y, l, r]:
+        nose.tools.assert_false(var in mod.matching.f.atoms())
+
+    # mu and theta should appear in both mu_prime or theta_prime
+    nose.tools.assert_true({mu, theta} < mod.matching.f.atoms())
+
+
+def test_wages():
+    """Testing symbolic expression for workers wages."""
+    mod = model.Model('positive', workers, firms, valid_F, valid_params)
+
+    # y, l, and r should not appear in workers wages
+    for var in [y, l, r]:
+        nose.tools.assert_false(var in mod.matching.w.atoms())
+
+    # mu and theta should appear in both mu_prime or theta_prime
+    nose.tools.assert_true({mu, theta} < mod.matching.w.atoms())
+
 
 def test_mu_prime():
     """Testing symbolic expression for matching differential equation."""
