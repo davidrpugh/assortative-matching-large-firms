@@ -92,6 +92,17 @@ class Model(object):
         self._firms = self._validate_input(value)
 
     @property
+    def Fxy(self):
+        """
+        Symbolic expression for the skill complementarity.
+
+        :getter: Return the expression for the skill complementarity.
+        :type: sympy.Basic
+
+        """
+        return sym.diff(self.F, self.workers.var, self.firms.var)
+
+    @property
     def Flr(self):
         """
         Symbolic expression for the quantities complementarity.

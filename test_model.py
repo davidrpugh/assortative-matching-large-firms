@@ -8,6 +8,7 @@ Test suite for the model.py module.
 import nose
 
 import sympy as sym
+from scipy import stats
 
 import inputs
 import model
@@ -86,6 +87,26 @@ def test_validate_production_function():
         model.Model('positive', workers, firms, production=invalid_F,
                     params=valid_params)
 
+def test_validate_params():
+    """Testing validation of parameters attribute."""
+
+    # valid parameters must be a dict
+    invalid_params = [1.0, 2.0, 3.0, 4.0, 5.0]
+
+    with nose.tools.assert_raises(AttributeError):
+        model.Model('positive', workers, firms, production=valid_F,
+                    params=invalid_params)
+
+def test__validate_input():
+    """Testing validation of inputs."""
+
+    # valid inputs must be an instance of the Input class
+    invalid_workers = stats.lognorm(s=1.0)
+    invalid_firms = stats.lognorm(s=1.0)
+
+    with nose.tools.assert_raises(AttributeError):
+        model.Model('positive', invalid_workers, invalid_firms, production=valid_F,
+                    params=valid_params)
 
 def test_mu_prime():
     """Testing symbolic expression for matching differential equation."""
