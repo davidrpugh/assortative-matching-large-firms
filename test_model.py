@@ -137,23 +137,25 @@ def test_wages():
 
 def test_mu_prime():
     """Testing symbolic expression for matching differential equation."""
-    mod = model.Model('positive', workers, firms, valid_F, valid_params)
+    for type in ['positive','negative']:
+    	mod = model.Model(type, workers, firms, valid_F, valid_params)
 
-    # y, l, and r should not appear in either mu_prime or theta_prime
-    for var in [y, l, r]:
-        nose.tools.assert_false(var in mod.matching.mu_prime.atoms())
+    	# y, l, and r should not appear in either mu_prime or theta_prime
+    	for var in [y, l, r]:
+        	nose.tools.assert_false(var in mod.matching.mu_prime.atoms())
 
-    # mu and theta should appear in both mu_prime or theta_prime
-    nose.tools.assert_true({mu, theta} < mod.matching.mu_prime.atoms())
+    	# mu and theta should appear in both mu_prime or theta_prime
+    	nose.tools.assert_true({mu, theta} < mod.matching.mu_prime.atoms())
 
 
 def test_theta_prime():
     """Testing symbolic expression for firm size differential equation."""
-    mod = model.Model('negative', workers, firms, valid_F, valid_params)
+    for type in ['positive','negative']:
+    	mod = model.Model(type, workers, firms, valid_F, valid_params)
 
-    # y, l, and r should not appear in either mu_prime or theta_prime
-    for var in [y, l, r]:
-        nose.tools.assert_false(var in mod.matching.theta_prime.atoms())
+    	# y, l, and r should not appear in either mu_prime or theta_prime
+    	for var in [y, l, r]:
+        	nose.tools.assert_false(var in mod.matching.theta_prime.atoms())
 
-    # mu and theta should appear in both mu_prime or theta_prime
-    nose.tools.assert_true({mu, theta} < mod.matching.theta_prime.atoms())
+    	# mu and theta should appear in both mu_prime or theta_prime
+    	nose.tools.assert_true({mu, theta} < mod.matching.theta_prime.atoms())
