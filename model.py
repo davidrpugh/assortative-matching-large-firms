@@ -314,10 +314,25 @@ class DifferentiableMatching(object):
 
     @property
     def mu_prime(self):
+        """
+        Differential equation describing the equilibrium matching between
+        workers and firms.
+
+        :getter: Return the current expression for mu prime.
+        :type: sympy.Basic
+
+        """
         raise NotImplementedError
 
     @property
     def theta_prime(self):
+        """
+        Differential equation describing the equilibrium firm size.
+
+        :getter: Return the current expression for theta prime.
+        :type: sympy.Basic
+
+        """
         raise NotImplementedError
 
     @property
@@ -346,11 +361,26 @@ class NegativeAssortativeMatching(DifferentiableMatching):
 
     @property
     def mu_prime(self):
+        """
+        Differential equation describing the equilibrium matching between
+        workers and firms.
+
+        :getter: Return the current expression for mu prime.
+        :type: sympy.Basic
+
+        """
         expr = -self.H / theta
         return expr.subs(self._subs)
 
     @property
     def theta_prime(self):
+        """
+        Differential equation describing the equilibrium firm size.
+
+        :getter: Return the current expression for theta prime.
+        :type: sympy.Basic
+
+        """
         expr = -(self.H * self.model.Fyl + self.model.Fxr) / self.model.Flr
         return expr.subs(self._subs)
 
@@ -360,10 +390,25 @@ class PositiveAssortativeMatching(DifferentiableMatching):
 
     @property
     def mu_prime(self):
+        """
+        Differential equation describing the equilibrium matching between
+        workers and firms.
+
+        :getter: Return the current expression for mu prime.
+        :type: sympy.Basic
+
+        """
         expr = self.H / theta
         return expr.subs(self._subs)
 
     @property
     def theta_prime(self):
+        """
+        Differential equation describing the equilibrium firm size.
+
+        :getter: Return the current expression for theta prime.
+        :type: sympy.Basic
+
+        """
         expr = (self.H * self.model.Fyl - self.model.Fxr) / self.model.Flr
         return expr.subs(self._subs)
