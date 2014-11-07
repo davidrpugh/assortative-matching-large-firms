@@ -48,7 +48,7 @@ A, kappa, nu, rho, l, gamma, r = sym.var('A, kappa, nu, rho, l, gamma, r')
 valid_F = r * A * kappa * (nu * x**rho + (1 - nu) * (y * (l / r))**rho)**(gamma / rho)
 
 
-def test_validate_assortativity():
+def test__validate_assortativity():
     """Testing validation of assortativity attribute."""
 
     # assortativity must be either 'positive' or 'negative'
@@ -58,8 +58,15 @@ def test_validate_assortativity():
         model.Model(invalid_assortativity, workers, firms, valid_F,
                     valid_params)
 
+    # assortativity must be a string
+    invalid_assortativity = 0.0
 
-def test_validate_production_function():
+    with nose.tools.assert_raises(AttributeError):
+        model.Model(invalid_assortativity, workers, firms, valid_F,
+                    valid_params)
+
+
+def test__validate_production_function():
     """Testing validation of production function attribute."""
 
     # production function must have type sym.Basic
@@ -88,7 +95,7 @@ def test_validate_production_function():
                     params=valid_params)
 
 
-def test_validate_params():
+def test__validate_params():
     """Testing validation of parameters attribute."""
 
     # valid parameters must be a dict
@@ -109,6 +116,35 @@ def test__validate_input():
     with nose.tools.assert_raises(AttributeError):
         model.Model('positive', invalid_workers, invalid_firms,
                     production=valid_F, params=valid_params)
+
+
+def test__validate_model():
+    """Testing validation of the model attribute."""
+    valid_model = model.Model('positive', workers, firms, production=valid_F,
+                              params=valid_params)
+
+    # model attribute must be instance of model.Model
+    invalid_model = 'not a model instance'
+    with nose.tools.assert_raises(AttributeError):
+        model.DifferentiableMatching(model=invalid_model)
+
+    # confirm valid model attribute
+    matching = model.DifferentiableMatching(model=valid_model)
+    nose.tools.assert_equals(matching.model.params, valid_params)
+
+
+def test_marginal_product_worker_skill():
+    """Testing the Fx attribute."""
+    # should be instance of sympy.Basic
+    mod = model.Model('negative', workers, firms, valid_F, valid_params)
+    nose.tools.assert_is_instance(mod.Fx, sym.Basic)
+
+
+def test_skill_complementarity():
+    """Testing the Fxy attribute."""
+    # should be instance of sympy.Basic
+    mod = model.Model('positive', workers, firms, valid_F, valid_params)
+    nose.tools.assert_is_instance(mod.Fxy, sym.Basic)
 
 
 def test_intensive_output():
@@ -137,23 +173,39 @@ def test_wages():
 
 def test_mu_prime():
     """Testing symbolic expression for matching differential equation."""
-    mod = model.Model('positive', workers, firms, valid_F, valid_params)
+    mod1 = model.Model('positive', workers, firms, valid_F, valid_params)
+    mod2 = model.Model('negative', workers, firms, valid_F, valid_params)
+
+    # mu_prime not implemented for base DifferentiableMatching class
+    matching = model.DifferentiableMatching(mod1)
+    with nose.tools.assert_raises(NotImplementedError):
+        matching.mu_prime
 
     # y, l, and r should not appear in either mu_prime or theta_prime
     for var in [y, l, r]:
-        nose.tools.assert_false(var in mod.matching.mu_prime.atoms())
+        nose.tools.assert_false(var in mod1.matching.mu_prime.atoms())
+        nose.tools.assert_false(var in mod2.matching.mu_prime.atoms())
 
     # mu and theta should appear in both mu_prime or theta_prime
-    nose.tools.assert_true({mu, theta} < mod.matching.mu_prime.atoms())
+    nose.tools.assert_true({mu, theta} < mod1.matching.mu_prime.atoms())
+    nose.tools.assert_true({mu, theta} < mod2.matching.mu_prime.atoms())
 
 
 def test_theta_prime():
     """Testing symbolic expression for firm size differential equation."""
-    mod = model.Model('negative', workers, firms, valid_F, valid_params)
+    mod1 = model.Model('negative', workers, firms, valid_F, valid_params)
+    mod2 = model.Model('positive', workers, firms, valid_F, valid_params)
+
+    # theta_prime not implemented in base DifferentiableMatching class
+    matching = model.DifferentiableMatching(mod1)
+    with nose.tools.assert_raises(NotImplementedError):
+        matching.theta_prime
 
     # y, l, and r should not appear in either mu_prime or theta_prime
     for var in [y, l, r]:
-        nose.tools.assert_false(var in mod.matching.theta_prime.atoms())
+        nose.tools.assert_false(var in mod1.matching.theta_prime.atoms())
+        nose.tools.assert_false(var in mod2.matching.theta_prime.atoms())
 
     # mu and theta should appear in both mu_prime or theta_prime
-    nose.tools.assert_true({mu, theta} < mod.matching.theta_prime.atoms())
+    nose.tools.assert_true({mu, theta} < mod1.matching.theta_prime.atoms())
+    nose.tools.assert_true({mu, theta} < mod2.matching.theta_prime.atoms())
