@@ -1,4 +1,10 @@
+import sympy as sym
+
 import models
+
+
+# should really use letters for variables so as not to confound with params!
+mu, theta = sym.var('mu, theta')
 
 
 class ShootingSolver(object):
@@ -7,10 +13,20 @@ class ShootingSolver(object):
     def __init__(self, model):
         self.model = model
 
+    @property
+    def _symbolic_equations(self):
+        return [self.model.matching.mu_prime, self.model.matching.theta_prime]
+
+    @property
+    def _symbolic_jacobian(self):
+        return self._symbolic_system.jacobian([mu, theta])
+
+    @property
+    def _symbolic_system(self):
+        return sym.Matrix(self._symbolic_equations)
+
 
 if __name__ == '__main__':
-    import sympy as sym
-
     import inputs
 
     # define endogenous variables
