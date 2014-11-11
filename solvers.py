@@ -1,3 +1,5 @@
+import numpy as np
+from scipy import special
 import sympy as sym
 
 import models
@@ -10,8 +12,34 @@ mu, theta = sym.var('mu, theta')
 class ShootingSolver(object):
     """Solves a model using forward shooting."""
 
+    __numeric_jacobian = None
+
+    __numeric_system = None
+
+    _modules = [{'ImmutableMatrix': np.array, 'erf': special.erf}, 'numpy']
+
     def __init__(self, model):
         self.model = model
+
+    @property
+    def _numeric_jacobian(self):
+        if self.__numeric_jacobian is None:
+            self.__numeric_jacobian = sym.lambdify(self._symbolic_args,
+                                                   self._symbolic_jacobian,
+                                                   self._modules)
+        return self.__numeric_jacobian
+
+    @property
+    def _numeric_system(self):
+        if self.__numeric_system is None:
+            self.__numeric_system = sym.lambdify(self._symbolic_args,
+                                                 self._symbolic_system,
+                                                 self._modules)
+        return self.__numeric_system
+
+    @property
+    def _symbolic_args(self):
+        return self._symbolic_variables + self._symbolic_params
 
     @property
     def _symbolic_equations(self):
@@ -22,8 +50,42 @@ class ShootingSolver(object):
         return self._symbolic_system.jacobian([mu, theta])
 
     @property
+    def _symbolic_params(self):
+        workers_params = sym.var(list(self.model.workers.params.keys()))
+        firms_params = sym.var(list(self.model.firms.params.keys()))
+        output_params = sym.var(list(self.model.params.keys()))
+        return output_params + workers_params + firms_params
+
+    @property
     def _symbolic_system(self):
         return sym.Matrix(self._symbolic_equations)
+
+    @property
+    def _symbolic_variables(self):
+        return [self.model.workers.var, mu, theta]
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, model):
+        self._model = self._validate_model(model)
+        self._clear_cache()
+
+    def _clear_cache(self):
+        """Clear cached functions for evaluating the model and its jacobian."""
+        self.__numeric_jacobian = None
+        self.__numeric_system = None
+
+    @staticmethod
+    def _validate_model(model):
+        """Validate the model attribute."""
+        if not isinstance(model, models.Model):
+            mesg = ("Attribute 'model' must have type models.Model, not {}.")
+            raise AttributeError(mesg.format(model.__class__))
+        else:
+            return model
 
 
 if __name__ == '__main__':
