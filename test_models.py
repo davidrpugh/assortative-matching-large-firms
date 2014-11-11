@@ -11,7 +11,7 @@ import sympy as sym
 from scipy import stats
 
 import inputs
-import model
+import models
 
 # define endogenous variables
 mu, theta = sym.var('mu, theta')
