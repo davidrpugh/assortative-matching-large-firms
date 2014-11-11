@@ -4,9 +4,8 @@ import sympy as sym
 
 import models
 
-
-# should really use letters for variables so as not to confound with params!
-mu, theta = sym.var('mu, theta')
+# represent endogenous variables mu and theta as a deferred vector
+V = sym.DeferredVector('V')
 
 
 class ShootingSolver(object):
@@ -47,7 +46,7 @@ class ShootingSolver(object):
 
     @property
     def _symbolic_jacobian(self):
-        return self._symbolic_system.jacobian([mu, theta])
+        return self._symbolic_system.jacobian([V[0], V[1]])
 
     @property
     def _symbolic_params(self):
@@ -58,11 +57,12 @@ class ShootingSolver(object):
 
     @property
     def _symbolic_system(self):
-        return sym.Matrix(self._symbolic_equations)
+        system = sym.Matrix(self._symbolic_equations)
+        return system.subs({'mu': V[0], 'theta': V[1]})
 
     @property
     def _symbolic_variables(self):
-        return [self.model.workers.var, mu, theta]
+        return [self.model.workers.var, V]
 
     @property
     def model(self):
