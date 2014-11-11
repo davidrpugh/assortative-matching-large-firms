@@ -2,7 +2,7 @@
 Test suite for the model.py module.
 
 @author : David R. Pugh
-@date : 2014-09-30
+@date : 2014-11-11
 
 """
 import nose
