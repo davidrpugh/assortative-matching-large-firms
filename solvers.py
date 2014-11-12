@@ -1,5 +1,5 @@
 import numpy as np
-from scipy import special
+from scipy import integrate, special
 import sympy as sym
 
 import models
@@ -15,9 +15,15 @@ class ShootingSolver(object):
 
     __numeric_system = None
 
+    __integrator = None
+
     _modules = [{'ImmutableMatrix': np.array, 'erf': special.erf}, 'numpy']
 
     def __init__(self, model):
+        """
+        Create an instance of the ShootingSolver class.
+
+        """
         self.model = model
 
     @property
@@ -137,10 +143,25 @@ class ShootingSolver(object):
         self._model = self._validate_model(model)
         self._clear_cache()
 
+    @property
+    def integrator(self):
+        """
+        Integrator for solving a system of ordinary differential equations.
+
+        :getter: Return the current integrator.
+        :type: scipy.integrate.ode
+
+        """
+        if self.__integrator is None:
+            self.__integrator = integrate.ode(f=self.evaluate_rhs,
+                                              jac=self.evaluate_jacobian)
+        return self.__integrator
+
     def _clear_cache(self):
         """Clear cached functions for evaluating the model and its jacobian."""
         self.__numeric_jacobian = None
         self.__numeric_system = None
+        self.__solver = None
 
     def _solve_negative_assortative_matching(self):
         raise NotImplementedError
@@ -178,7 +199,7 @@ class ShootingSolver(object):
         jac = self._numeric_jacobian(x, V, **self.model.params)
         return jac
 
-    def evaluate_system(self, x, V):
+    def evaluate_rhs(self, x, V):
         r"""
         Numerically evaluate right-hand side of the system of ODEs.
 
