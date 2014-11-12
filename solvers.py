@@ -246,8 +246,12 @@ class ShootingSolver(object):
         return abs(self.integrator.t - bound) <= tol
 
     def _reset_positive_assortative_solution(self, firm_size):
+        # reset the initial condition for the integrator
         x_upper, y_upper = self.model.workers.upper, self.model.firms.upper
         initial_V = np.array([y_upper, firm_size])
+        self.integrator.set_initial_value(initial_V, x_upper)
+
+        # reset the putative equilibrium solution
         wage = self.evaluate_wage(x_upper, initial_V)
         profit = self.evaluate_profit(x_upper, initial_V)
         self.solution = np.hstack((x_upper, initial_V, wage, profit))
@@ -255,21 +259,23 @@ class ShootingSolver(object):
     def _solve_negative_assortative_matching(self):
         raise NotImplementedError
 
-    def _solve_positive_assortative_matching(self, initial_firm_size, tol, N,
+    def _solve_positive_assortative_matching(self, firm_size_upper, tol, N,
                                              integrator, **kwargs):
 
-        # range of worker types
+        # relevant bounds
         x_lower = self.model.workers.lower_bound
         x_upper = self.model.workers.upper_bound
-
-        # range of worker types
         y_lower = self.model.firms.lower_bound
-        y_upper = self.model.firms.upper_bound
 
-        # initial condition for the solver
+        # initialize integrator
+        self.integrator.set_integrator(integrator, **kwargs)
+
+        # initialize the solution
+        firm_size_lower = 0.0
+        initial_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
         self._reset_positive_assortative_solution(initial_firm_size)
 
-        # compute the optimal step size
+        # step size insures that never step beyond x_lower
         step_size = (x_upper - x_lower) / (N - 1)
 
         while self.integrator.successful():
