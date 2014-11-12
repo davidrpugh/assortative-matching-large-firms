@@ -202,6 +202,14 @@ class ShootingSolver(object):
         self._clear_cache()
 
     @property
+    def solution(self):
+        return self._solution
+
+    @solution.setter
+    def solution(self, value):
+        self._solution = self._validate_initial_solution(value)
+
+    @property
     def integrator(self):
         """
         Integrator for solving a system of ordinary differential equations.
@@ -232,14 +240,14 @@ class ShootingSolver(object):
         self.__solver = None
 
     def _exhausted_firms(self, bound, tol):
-        return abs(self.integrator.y[0] - bounds) <= tol
+        return abs(self.integrator.y[0] - bound) <= tol
 
     def _exhausted_workers(self, bound, tol):
         return abs(self.integrator.t - bound) <= tol
 
-    def _reset_positive_assortative_solution(self, initial_firm_size):
+    def _reset_positive_assortative_solution(self, firm_size):
         x_upper, y_upper = self.model.workers.upper, self.model.firms.upper
-        initial_V = np.array([y_upper, initial_firm_size])
+        initial_V = np.array([y_upper, firm_size])
         wage = self.evaluate_wage(x_upper, initial_V)
         profit = self.evaluate_profit(x_upper, initial_V)
         self.solution = np.hstack((x_upper, initial_V, wage, profit))
@@ -259,28 +267,28 @@ class ShootingSolver(object):
         y_upper = self.model.firms.upper_bound
 
         # initial condition for the solver
-        init = np.array([y_upper, initial_firm_size])
+        self._reset_positive_assortative_solution(initial_firm_size)
 
         # compute the optimal step size
         step_size = (x_upper - x_lower) / (N - 1)
-        solution = ?
 
         while self.integrator.successful():
 
-            # Walk the system forward one step
+            # walk the system forward one step
             self.integrator.integrate(self.integrator.t - step_size)
 
-            # unpack the step
+            # unpack the components of the new step
             x, V = self.integrator.t, self.integrator.y
             mu, theta = V
 
+            # update the putative equilibrium solution
+            wage = self.evaluate_wage(x, V)
+            profit = self.evaluate_profit(x, V)
+            step = np.hstack((x, V, wage, profit))
+            self.solution = np.vstack((self.solution, step))
+
             # firm size should always be non-negative
             assert theta > 0.0, "Firm size should be non-negative!"
-
-            # compute profits and wages along putative equilibrium
-            wage = self.evaluate_wage(x, V)
-
-            profit = self.evaluate_profit(x, V)
 
             if self._exhausted_workers(x_lower, tol):
                 # "normal" equilibrium
@@ -292,8 +300,8 @@ class ShootingSolver(object):
                 # initial theta too high!
                 else:
                     firm_size_upper = initial_firm_size
-                    initial_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-                    self._reset_positive_assortative_solution(initial_firm_size)
+                    guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
+                    self._reset_positive_assortative_solution(guess_firm_size)
 
             elif self._exhausted_firms(y_lower, tol):
                 # "normal" equilibrium
@@ -305,16 +313,11 @@ class ShootingSolver(object):
                 # initial theta too low!
                 else:
                     firm_size_lower = initial_firm_size
-                    initial_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-                    self._reset_positive_assortative_solution(initial_firm_size)
+                    guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
+                    self._reset_positive_assortative_solution(guess_firm_size)
 
             else:
                 continue
-
-            step = np.hstack((x, V, wage, profit))
-            solution = np.vstack((solution, step))
-
-        return solution
 
     @staticmethod
     def _validate_model(model):
@@ -415,7 +418,6 @@ class ShootingSolver(object):
 
     def solve(self):
         if self.model.assortativity == 'positive':
-            soln = self._solve_positive_assortative_matching()
+            self._solve_positive_assortative_matching()
         else:
-            soln = self._solve_negative_assortative_matching()
-        return soln
+            self._solve_negative_assortative_matching()
