@@ -338,6 +338,19 @@ class DifferentiableMatching(object):
         raise NotImplementedError
 
     @property
+    def profit(self):
+        """
+        Symbolic expression for profit earned by a firm.
+
+        :getter: Return the current expression for profits.
+        :type: sympy.Basic.
+
+        """
+        revenue = self.f
+        costs = theta * self.wage
+        return revenue - costs
+
+    @property
     def theta_prime(self):
         """
         Differential equation describing the equilibrium firm size.
