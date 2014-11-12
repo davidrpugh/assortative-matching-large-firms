@@ -257,17 +257,10 @@ class ShootingSolver(object):
 
     def _exhausted_firms(self, bound, tol):
         """Check whether firms have been exhausted."""
-        if self.model.assortativity == 'positive':
-            if self.integrator.y[0] - bound < -tol:
-                exhausted = True
-            else:
-                exhausted = False
+        if self.integrator.y[0] - bound < -tol:
+            exhausted = True
         else:
-            if self.integrator.y[0] - bound > tol:
-                exhausted = True
-            else:
-                exhausted = False
-
+            exhausted = False
         return exhausted
 
     def _exhausted_workers(self, bound, tol):
