@@ -386,13 +386,13 @@ class ShootingSolver(object):
                     print(mesg)
                     break
 
-                elif ((not self._exhausted_firms(profit, tol)) and
+                elif ((not self._exhausted_firms(y_lower, tol)) and
                       self._almost_zero_profit(profit, tol)):
                     mesg = "Success! Found equilibrium with excess firms."
                     print(mesg)
                     break
 
-                elif((not self._exhausted_firms(profit, tol)) and
+                elif((not self._exhausted_firms(y_lower, tol)) and
                      (not self._almost_zero_profit(profit, tol))):
                     mesg = "Initial guess of {} for firm size is too high!"
                     print(mesg.format(guess_firm_size))
@@ -499,13 +499,13 @@ class ShootingSolver(object):
                     print(mesg)
                     break
 
-                elif ((not self._exhausted_firms(profit, tol)) and
+                elif ((not self._exhausted_firms(y_lower, tol)) and
                       self._almost_zero_profit(profit, tol)):
                     mesg = "Success! Found equilibrium with excess firms."
                     print(mesg)
                     break
 
-                elif((not self._exhausted_firms(profit, tol)) and
+                elif((not self._exhausted_firms(y_lower, tol)) and
                      (not self._almost_zero_profit(profit, tol))):
                     mesg = "Initial guess of {} for firm size is too high!"
                     print(mesg.format(guess_firm_size))
