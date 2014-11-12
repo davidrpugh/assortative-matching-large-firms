@@ -216,9 +216,11 @@ class ShootingSolver(object):
         return self.__integrator
 
     def _clear_cache(self):
-        """Clear cached functions for evaluating the model and its jacobian."""
+        """Clear cached functions used for numerical evaluation."""
         self.__numeric_jacobian = None
+        self.__numeric_profit = None
         self.__numeric_system = None
+        self.__numeric_wage = None
         self.__solver = None
 
     def _solve_negative_assortative_matching(self):
