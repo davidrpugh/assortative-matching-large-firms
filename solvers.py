@@ -151,7 +151,7 @@ class ShootingSolver(object):
         else:
             return model
 
-    def evaluate_jacobian(self, x, V):
+    def evaluate_jacobian(self, V, x):
         r"""
         Numerically evaluate model Jacobian.
 
@@ -172,7 +172,7 @@ class ShootingSolver(object):
         jac = self._numeric_jacobian(x, V, **self.model.params)
         return jac
 
-    def evaluate_system(self, x, V):
+    def evaluate_system(self, V, x):
         r"""
         Numerically evaluate right-hand side of the system of ODEs.
 
@@ -195,6 +195,8 @@ class ShootingSolver(object):
 
 
 if __name__ == '__main__':
+    from scipy import integrate
+
     import inputs
 
     # define endogenous variables
@@ -231,7 +233,15 @@ if __name__ == '__main__':
     A, kappa, nu, rho, l, gamma, r = sym.var('A, kappa, nu, rho, l, gamma, r')
     valid_F = r * A * kappa * (nu * x**rho + (1 - nu) * (y * (l / r))**rho)**(gamma / rho)
 
-    valid_model = models.Model('positive', workers, firms, production=valid_F,
+    valid_model = models.Model('negative', workers, firms, production=valid_F,
                                params=valid_params)
 
     solver = ShootingSolver(model=valid_model)
+
+    def solve(theta0, N):
+        result = integrate.odeint(solver.evaluate_system,
+                                  y0=np.array([firms.upper, theta0]),
+                                  t=np.linspace(workers.lower, workers.upper, N),
+                                  Dfun=solver.evaluate_jacobian)
+        print result
+        return result[-1, 0] - workers.upper
