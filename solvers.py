@@ -142,6 +142,12 @@ class ShootingSolver(object):
         self.__numeric_jacobian = None
         self.__numeric_system = None
 
+    def _solve_negative_assortative_matching(self):
+        raise NotImplementedError
+
+    def _solve_positive_assortative_matching(self):
+        raise NotImplementedError
+
     @staticmethod
     def _validate_model(model):
         """Validate the model attribute."""
@@ -192,6 +198,13 @@ class ShootingSolver(object):
         """
         rhs = self._numeric_system(x, V, **self.model.params).ravel()
         return rhs
+
+    def solve(self):
+        if self.model.assortativity == 'positive':
+            soln = self._solve_positive_assortative_matching()
+        else:
+            soln = self._solve_negative_assortative_matching()
+        return soln
 
 
 if __name__ == '__main__':
