@@ -215,6 +215,14 @@ class ShootingSolver(object):
                                               jac=self.evaluate_jacobian)
         return self.__integrator
 
+    @staticmethod
+    def _almost_zero_profit(profit, tol):
+        return profit <= tol
+
+    @staticmethod
+    def _almost_zero_wage(wage, tol):
+        return wage <= tol
+
     def _clear_cache(self):
         """Clear cached functions used for numerical evaluation."""
         self.__numeric_jacobian = None
@@ -223,6 +231,12 @@ class ShootingSolver(object):
         self.__numeric_wage = None
         self.__solver = None
 
+    def _exhausted_firms(self, bound, tol):
+        return abs(self.integrator.y[0] - bounds) <= tol
+
+    def _exhausted_workers(self, bound, tol):
+        return abs(self.integrator.t - bound) <= tol
+
     def _solve_negative_assortative_matching(self):
         raise NotImplementedError
 
@@ -230,6 +244,8 @@ class ShootingSolver(object):
         # set up the integrator
 
         # set up a good initial condition
+        x_lower = self.model.workers.lower
+        y_lower = self.mode.firms.lower
         solution = ?
 
         while self.integrator.successful():
@@ -251,19 +267,25 @@ class ShootingSolver(object):
             profit = self.evaluate_profit(x, V)
             assert profit > 0.0, "Profit should be non-negative!"
 
-            if self._exhausted_workers():
-                if self._exhausted_firms():  # "normal" equilibrium
+            if self._exhausted_workers(x_lower, tol):
+                # "normal" equilibrium
+                if self._exhausted_firms(y_lower, tol):
                     break
-                elif self._profit_almost_zero():  # "excess" firms equilibrium
+                # "excess" firms equilibrium
+                elif self._almost_zero_profit(profit, tol):
                     break
-                else:  # initial theta too high!
+                # initial theta too high!
+                else:
                     break
-            elif self._exhausted_firms():
-                if self._exhausted_workers():  # "normal" equilibrium
+            elif self._exhausted_firms(y_lower, tol):
+                # "normal" equilibrium
+                if self._exhausted_workers(x_lower, tol):
                     assert "This case should have already been handled above!"
-                elif self._wage_almost_zero():  # "excess" workers equilibrium
+                # "excess" workers equilibrium
+                elif self._almost_zero_wage(wage, tol):
                     break
-                else:  # initial theta too low!
+                # initial theta too low!
+                else:
                     break
             else:
                 continue
