@@ -239,11 +239,33 @@ class ShootingSolver(object):
         self.__numeric_wage = None
         self.__solver = None
 
+    def _converged_firms(self, bound, tol):
+        if abs(self.integrator.y[0] - bound) <= tol:
+            converged = True
+        else:
+            converged = False
+        return converged
+
+    def _converged_workers(self, bound, tol):
+        if abs(self.integrator.t - bound) <= tol:
+            converged = True
+        else:
+            converged = False
+        return converged
+
     def _exhausted_firms(self, bound, tol):
-        return self.integrator.y[0] - bound <= tol
+        if self.integrator.y[0] - bound < -tol:
+            exhausted = True
+        else:
+            exhausted = False
+        return exhausted
 
     def _exhausted_workers(self, bound, tol):
-        return self.integrator.t - bound <= tol
+        if self.integrator.t - bound < -tol:
+            exhausted = True
+        else:
+            exhausted = False
+        return exhausted
 
     def _guess_firm_size_upper_too_low(self, bound, tol):
         return abs(self.integrator.y[1] - bound) <= tol
