@@ -13,6 +13,8 @@ class ShootingSolver(object):
 
     __numeric_jacobian = None
 
+    __numeric_profit = None
+
     __numeric_system = None
 
     __numeric_wage = None
@@ -42,6 +44,21 @@ class ShootingSolver(object):
                                                    self._symbolic_jacobian,
                                                    self._modules)
         return self.__numeric_jacobian
+
+    @property
+    def _numeric_profit(self):
+        """
+        Vectorized function for numerical evaluation of profits.
+
+        :getter: Return the current function for evaluating profits.
+        :type: function
+
+        """
+        if self.__numeric_profit is None:
+            self.__numeric_profit = sym.lambdify(self._symbolic_args,
+                                                 self._symbolic_profit,
+                                                 self._modules)
+        return self.__numeric_profit
 
     @property
     def _numeric_system(self):
@@ -119,6 +136,18 @@ class ShootingSolver(object):
         return sym.var(list(self.model.params.keys()))
 
     @property
+    def _symbolic_profit(self):
+        """
+        Symbolic expression defining profit.
+
+        :getter: Return the symbolic expression for profits.
+        :type: sympy.Basic
+
+        """
+        profit = self.model.matching.profit
+        return profit.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
     def _symbolic_system(self):
         """
         Symbolic matrix defining the right-hand side of a system of ODEs.
@@ -147,7 +176,7 @@ class ShootingSolver(object):
         """
         Symbolic expression defining wages.
 
-        :getter: Return the symbolic expression for wages
+        :getter: Return the symbolic expression for wages.
         :type: sympy.Basic
 
         """
@@ -227,6 +256,28 @@ class ShootingSolver(object):
         """
         jac = self._numeric_jacobian(x, V, **self.model.params)
         return jac
+
+    def evaluate_profit(self, x, V):
+        r"""
+        Numerically evaluate profit for a firm with productivity V[0] and size
+        V[1] when matched with a worker with skill x.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        profit : float
+            Firm's profit.
+
+        """
+        profit = self._numeric_profit(x, V, **self.model.params)
+        return profit
 
     def evaluate_rhs(self, x, V):
         r"""
