@@ -275,10 +275,30 @@ class ShootingSolver(object):
         """Check whether guess for upper bound for firm size is too low."""
         return abs(self.integrator.y[1] - bound) <= tol
 
+    def _reset_negative_assortative_solution(self, firm_size):
+        """
+        Reset the initial condition for the integrator and re-initialze
+        the solution array for model with negative assortative matching.
+
+        Parameters
+        ----------
+        firm_size : float
+
+        """
+        # reset the initial condition for the integrator
+        x_lower, y_upper = self.model.workers.lower, self.model.firms.upper
+        initial_V = np.array([y_upper, firm_size])
+        self.integrator.set_initial_value(initial_V, x_lower)
+
+        # reset the putative equilibrium solution
+        wage = self.evaluate_wage(x_lower, initial_V)
+        profit = self.evaluate_profit(x_lower, initial_V)
+        self.solution = np.hstack((x_lower, initial_V, wage, profit))
+
     def _reset_positive_assortative_solution(self, firm_size):
         """
         Reset the initial condition for the integrator and re-initialze
-        the solution array.
+        the solution array for model with positive assortative matching.
 
         Parameters
         ----------
