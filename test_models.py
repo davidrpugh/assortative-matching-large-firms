@@ -41,7 +41,7 @@ firms = inputs.Input(var=y,
                      )
 
 # define some valid model params
-valid_params = {'nu': 0.89, 'kappa': 1.0, 'gamma': 0.54, 'rho': 0.24, 'A': 1.0}
+valid_F_params = {'nu': 0.89, 'kappa': 1.0, 'gamma': 0.54, 'rho': 0.24, 'A': 1.0}
 
 # define a valid production function
 A, kappa, nu, rho, l, gamma, r = sym.var('A, kappa, nu, rho, l, gamma, r')
@@ -56,14 +56,14 @@ def test__validate_assortativity():
 
     with nose.tools.assert_raises(AttributeError):
         models.Model(invalid_assortativity, workers, firms, valid_F,
-                     valid_params)
+                     valid_F_params)
 
     # assortativity must be a string
     invalid_assortativity = 0.0
 
     with nose.tools.assert_raises(AttributeError):
         models.Model(invalid_assortativity, workers, firms, valid_F,
-                     valid_params)
+                     valid_F_params)
 
 
 def test__validate_production_function():
@@ -76,7 +76,7 @@ def test__validate_production_function():
 
     with nose.tools.assert_raises(AttributeError):
         models.Model('positive', workers, firms, production=invalid_F,
-                     params=valid_params)
+                     params=valid_F_params)
 
     # production function must share vars with workers and firms
     m, n = sym.var('m, n')
@@ -84,7 +84,7 @@ def test__validate_production_function():
 
     with nose.tools.assert_raises(AttributeError):
         models.Model('negative', workers, firms, production=invalid_F,
-                     params=valid_params)
+                     params=valid_F_params)
 
     # production function must depend on r and l
     m, n = sym.var('m, n')
@@ -92,18 +92,18 @@ def test__validate_production_function():
 
     with nose.tools.assert_raises(AttributeError):
         models.Model('positive', workers, firms, production=invalid_F,
-                     params=valid_params)
+                     params=valid_F_params)
 
 
-def test__validate_params():
-    """Testing validation of parameters attribute."""
+def test__validate_F_params():
+    """Testing validation of F_params attribute."""
 
     # valid parameters must be a dict
-    invalid_params = [1.0, 2.0, 3.0, 4.0, 5.0]
+    invalid_F_params = [1.0, 2.0, 3.0, 4.0, 5.0]
 
     with nose.tools.assert_raises(AttributeError):
         models.Model('positive', workers, firms, production=valid_F,
-                     params=invalid_params)
+                     params=invalid_F_params)
 
 
 def test__validate_input():
@@ -115,13 +115,13 @@ def test__validate_input():
 
     with nose.tools.assert_raises(AttributeError):
         models.Model('positive', invalid_workers, invalid_firms,
-                     production=valid_F, params=valid_params)
+                     production=valid_F, params=valid_F_params)
 
 
 def test__validate_model():
     """Testing validation of the model attribute."""
     valid_model = models.Model('positive', workers, firms, production=valid_F,
-                               params=valid_params)
+                               params=valid_F_params)
 
     # model attribute must be instance of model.Model
     invalid_model = 'not a model instance'
@@ -130,26 +130,26 @@ def test__validate_model():
 
     # confirm valid model attribute
     matching = models.DifferentiableMatching(model=valid_model)
-    nose.tools.assert_equals(matching.model.params, valid_params)
+    nose.tools.assert_equals(matching.model, valid_model)
 
 
 def test_marginal_product_worker_skill():
     """Testing the Fx attribute."""
     # should be instance of sympy.Basic
-    mod = models.Model('negative', workers, firms, valid_F, valid_params)
+    mod = models.Model('negative', workers, firms, valid_F, valid_F_params)
     nose.tools.assert_is_instance(mod.Fx, sym.Basic)
 
 
 def test_skill_complementarity():
     """Testing the Fxy attribute."""
     # should be instance of sympy.Basic
-    mod = models.Model('positive', workers, firms, valid_F, valid_params)
+    mod = models.Model('positive', workers, firms, valid_F, valid_F_params)
     nose.tools.assert_is_instance(mod.Fxy, sym.Basic)
 
 
 def test_intensive_output():
     """Testing symbolic expression for intensive output."""
-    mod = models.Model('positive', workers, firms, valid_F, valid_params)
+    mod = models.Model('positive', workers, firms, valid_F, valid_F_params)
 
     # y, l, and r should not appear in intensive output
     for var in [y, l, r]:
@@ -161,7 +161,7 @@ def test_intensive_output():
 
 def test_wages():
     """Testing symbolic expression for workers wages."""
-    mod = models.Model('positive', workers, firms, valid_F, valid_params)
+    mod = models.Model('positive', workers, firms, valid_F, valid_F_params)
 
     # y, l, and r should not appear in workers wages
     for var in [y, l, r]:
@@ -173,8 +173,8 @@ def test_wages():
 
 def test_mu_prime():
     """Testing symbolic expression for matching differential equation."""
-    mod1 = models.Model('positive', workers, firms, valid_F, valid_params)
-    mod2 = models.Model('negative', workers, firms, valid_F, valid_params)
+    mod1 = models.Model('positive', workers, firms, valid_F, valid_F_params)
+    mod2 = models.Model('negative', workers, firms, valid_F, valid_F_params)
 
     # mu_prime not implemented for base DifferentiableMatching class
     matching = models.DifferentiableMatching(mod1)
@@ -193,8 +193,8 @@ def test_mu_prime():
 
 def test_theta_prime():
     """Testing symbolic expression for firm size differential equation."""
-    mod1 = models.Model('negative', workers, firms, valid_F, valid_params)
-    mod2 = models.Model('positive', workers, firms, valid_F, valid_params)
+    mod1 = models.Model('negative', workers, firms, valid_F, valid_F_params)
+    mod2 = models.Model('positive', workers, firms, valid_F, valid_F_params)
 
     # theta_prime not implemented in base DifferentiableMatching class
     matching = models.DifferentiableMatching(mod1)

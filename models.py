@@ -28,16 +28,16 @@ class Model(object):
             Instance of the inputs.Input class defining firms with
             heterogeneous productivity.
         production : sympy.Basic
-            Symbolic expression describing the production technology.
+            Symbolic expression describing the production function.
         params : dict
-            Dictionary of model parameters.
+            Dictionary of model parameters for the production function.
 
         """
         self.assortativity = assortativity
         self.workers = workers
         self.firms = firms
         self.F = production
-        self.params = params
+        self.F_params = params
 
     @property
     def assortativity(self):
@@ -72,6 +72,22 @@ class Model(object):
     def F(self, value):
         """Set a new production function."""
         self._F = self._validate_production_function(value)
+
+    @property
+    def F_params(self):
+        """
+        Dictionary of parameters for the production function, F.
+
+        :getter: Return the current parameter dictionary.
+        :type: dict
+
+        """
+        return self._F_params
+
+    @F_params.setter
+    def F_params(self, value):
+        """Set a new dictionary of parameters for F."""
+        self._F_params = self._validate_F_params(value)
 
     @property
     def firms(self):
@@ -168,16 +184,13 @@ class Model(object):
         Dictionary of model parameters.
 
         :getter: Return the current parameter dictionary.
-        :setter: Set a new parameter dictionary.
         :type: dict
 
         """
-        return self._params
-
-    @params.setter
-    def params(self, value):
-        """Set a new parameter dictionary."""
-        self._params = self._validate_params(value)
+        model_params = dict(self.F_params.items() +
+                            self.workers.params.items() +
+                            self.firms.params.items())
+        return model_params
 
     @property
     def workers(self):
@@ -221,7 +234,7 @@ class Model(object):
             return value
 
     @staticmethod
-    def _validate_params(params):
+    def _validate_F_params(params):
         """Validates the dictionary of model parameters."""
         if not isinstance(params, dict):
             mesg = "Attribute 'params' must have type dict, not {}."

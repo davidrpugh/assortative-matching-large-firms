@@ -22,6 +22,13 @@ class ShootingSolver(object):
 
     @property
     def _numeric_jacobian(self):
+        """
+        Vectorized function for numerical evaluation of model Jacobian.
+
+        :getter: Return the current function for evaluating the Jacobian.
+        :type: function
+
+        """
         if self.__numeric_jacobian is None:
             self.__numeric_jacobian = sym.lambdify(self._symbolic_args,
                                                    self._symbolic_jacobian,
@@ -30,6 +37,13 @@ class ShootingSolver(object):
 
     @property
     def _numeric_system(self):
+        """
+        Vectorized function for numerical evaluation of model system.
+
+        :getter: Return the current function for evaluating the system.
+        :type: function
+
+        """
         if self.__numeric_system is None:
             self.__numeric_system = sym.lambdify(self._symbolic_args,
                                                  self._symbolic_system,
@@ -38,38 +52,88 @@ class ShootingSolver(object):
 
     @property
     def _symbolic_args(self):
+        """
+        Symbolic arguments used when lambdifying symbolic Jacobian and system.
+
+        :getter: Return the list of symbolic arguments.
+        :type: list
+
+        """
         return self._symbolic_variables + self._symbolic_params
 
     @property
     def _symbolic_equations(self):
+        """
+        Symbolic expressions defining the right-hand side of a system of ODEs.
+
+        :getter: Return the list of symbolic expressions.
+        :type: list
+
+        """
         return [self.model.matching.mu_prime, self.model.matching.theta_prime]
 
     @property
     def _symbolic_jacobian(self):
+        """
+        Symbolic expressions defining the Jacobian of a system of ODEs.
+
+        :getter: Return the symbolic Jacobian.
+        :type: sympy.Basic
+
+        """
         return self._symbolic_system.jacobian([V[0], V[1]])
 
     @property
     def _symbolic_params(self):
-        workers_params = sym.var(list(self.model.workers.params.keys()))
-        firms_params = sym.var(list(self.model.firms.params.keys()))
-        output_params = sym.var(list(self.model.params.keys()))
-        return output_params + workers_params + firms_params
+        """
+        Symbolic parameters passed as arguments when lambdifying symbolic
+        Jacobian and system.
+
+        :getter: Return the list of symbolic parameter arguments.
+        :type: list
+
+        """
+        return sym.var(list(self.model.params.keys()))
 
     @property
     def _symbolic_system(self):
+        """
+        Symbolic matrix defining the right-hand side of a system of ODEs.
+
+        :getter: Return the symbolic matrix.
+        :type: sympy.Matrix
+
+        """
         system = sym.Matrix(self._symbolic_equations)
         return system.subs({'mu': V[0], 'theta': V[1]})
 
     @property
     def _symbolic_variables(self):
+        """
+        Symbolic variables passed as arguments when lambdifying symbolic
+        Jacobian and system.
+
+        :getter: Return the list of symbolic variable arguments.
+        :type: list
+
+        """
         return [self.model.workers.var, V]
 
     @property
     def model(self):
+        """
+        Instance of the models.Model class to be solved via forward shooting.
+
+        :getter: Return the current models.Model instance.
+        :setter: Set a new models.Model instance.
+        :type: models.Model
+
+        """
         return self._model
 
     @model.setter
     def model(self, model):
+        """Set a new Model attribute."""
         self._model = self._validate_model(model)
         self._clear_cache()
 
@@ -86,6 +150,48 @@ class ShootingSolver(object):
             raise AttributeError(mesg.format(model.__class__))
         else:
             return model
+
+    def evaluate_jacobian(self, x, V):
+        r"""
+        Numerically evaluate model Jacobian.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        jac : numpy.array (shape=(2,2))
+            Jacobian matrix of partial derivatives.
+
+        """
+        jac = self._numeric_jacobian(x, V, **self.model.params)
+        return jac
+
+    def evaluate_system(self, x, V):
+        r"""
+        Numerically evaluate right-hand side of the system of ODEs.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        rhs : numpy.array (shape=(2,))
+            Right hand side of the system of ODEs.
+
+        """
+        rhs = self._numeric_system(x, V, **self.model.params).ravel()
+        return rhs
 
 
 if __name__ == '__main__':
