@@ -207,7 +207,7 @@ class ShootingSolver(object):
 
     @solution.setter
     def solution(self, value):
-        self._solution = self._validate_initial_solution(value)
+        self._solution = value
 
     @property
     def integrator(self):
@@ -240,10 +240,13 @@ class ShootingSolver(object):
         self.__solver = None
 
     def _exhausted_firms(self, bound, tol):
-        return abs(self.integrator.y[0] - bound) <= tol
+        return self.integrator.y[0] - bound <= tol
 
     def _exhausted_workers(self, bound, tol):
-        return abs(self.integrator.t - bound) <= tol
+        return self.integrator.t - bound <= tol
+
+    def _guess_firm_size_upper_too_low(self, bound, tol):
+        return abs(self.integrator.y[1] - bound) <= tol
 
     def _reset_positive_assortative_solution(self, firm_size):
         # reset the initial condition for the integrator
@@ -259,24 +262,26 @@ class ShootingSolver(object):
     def _solve_negative_assortative_matching(self):
         raise NotImplementedError
 
-    def _solve_positive_assortative_matching(self, firm_size_upper, tol, N,
-                                             integrator, **kwargs):
+    def _solve_positive_assortative_matching(self, guess_firm_size_upper, tol,
+                                             number_knots, integrator, **kwargs):
+        """Solve for positive assortative matching equilibrium."""
 
         # relevant bounds
-        x_lower = self.model.workers.lower_bound
-        x_upper = self.model.workers.upper_bound
-        y_lower = self.model.firms.lower_bound
+        x_lower = self.model.workers.lower
+        x_upper = self.model.workers.upper
+        y_lower = self.model.firms.lower
 
         # initialize integrator
         self.integrator.set_integrator(integrator, **kwargs)
 
         # initialize the solution
         firm_size_lower = 0.0
-        initial_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-        self._reset_positive_assortative_solution(initial_firm_size)
+        firm_size_upper = guess_firm_size_upper
+        guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
+        self._reset_positive_assortative_solution(guess_firm_size)
 
         # step size insures that never step beyond x_lower
-        step_size = (x_upper - x_lower) / (N - 1)
+        step_size = (x_upper - x_lower) / (number_knots - 1)
 
         while self.integrator.successful():
 
@@ -299,13 +304,20 @@ class ShootingSolver(object):
             if self._exhausted_workers(x_lower, tol):
                 # "normal" equilibrium
                 if self._exhausted_firms(y_lower, tol):
+                    mesg = ("Success! Found equilibrium where all workers " +
+                            "and firms are matched")
+                    print(mesg)
                     break
                 # "excess" firms equilibrium
                 elif self._almost_zero_profit(profit, tol):
+                    mesg = "Success! Found equilibrium with excess firms."
+                    print(mesg)
                     break
                 # initial theta too high!
                 else:
-                    firm_size_upper = initial_firm_size
+                    mesg = "Initial guess of {} for firm size is too high!"
+                    print(mesg.format(guess_firm_size))
+                    firm_size_upper = guess_firm_size
                     guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
                     self._reset_positive_assortative_solution(guess_firm_size)
 
@@ -315,12 +327,22 @@ class ShootingSolver(object):
                     assert "This case should have already been handled above!"
                 # "excess" workers equilibrium
                 elif self._almost_zero_wage(wage, tol):
+                    mesg = "Success! Found equilibrium with excess workers."
+                    print(mesg)
                     break
                 # initial theta too low!
                 else:
-                    firm_size_lower = initial_firm_size
+                    mesg = "Initial guess of {} for firm size is too low!"
+                    print(mesg.format(guess_firm_size))
+                    firm_size_lower = guess_firm_size
                     guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
                     self._reset_positive_assortative_solution(guess_firm_size)
+
+            elif self._guess_firm_size_upper_too_low(guess_firm_size_upper, tol):
+                mesg = ("Failure! Need to increase initial guess for upper " +
+                        "bound on firm size!")
+                print(mesg)
+                break
 
             else:
                 continue
@@ -422,8 +444,13 @@ class ShootingSolver(object):
         assert wage > 0.0, "Wage should be non-negative!"
         return wage
 
-    def solve(self):
+    def solve(self, guess_firm_size_upper, tol=1e-6, number_knots=100,
+              integrator='dopri5', **kwargs):
         if self.model.assortativity == 'positive':
-            self._solve_positive_assortative_matching()
+            self._solve_positive_assortative_matching(guess_firm_size_upper,
+                                                      tol, number_knots,
+                                                      integrator, **kwargs)
         else:
-            self._solve_negative_assortative_matching()
+            self._solve_negative_assortative_matching(guess_firm_size_upper,
+                                                      tol, number_knots,
+                                                      integrator, **kwargs)
