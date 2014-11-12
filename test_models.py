@@ -165,10 +165,10 @@ def test_wages():
 
     # y, l, and r should not appear in workers wages
     for var in [y, l, r]:
-        nose.tools.assert_false(var in mod.matching.w.atoms())
+        nose.tools.assert_false(var in mod.matching.wage.atoms())
 
     # mu and theta should appear in both mu_prime or theta_prime
-    nose.tools.assert_true({mu, theta} < mod.matching.w.atoms())
+    nose.tools.assert_true({mu, theta} < mod.matching.wage.atoms())
 
 
 def test_mu_prime():
