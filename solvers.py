@@ -151,7 +151,7 @@ class ShootingSolver(object):
         else:
             return model
 
-    def evaluate_jacobian(self, V, x):
+    def evaluate_jacobian(self, x, V):
         r"""
         Numerically evaluate model Jacobian.
 
@@ -172,7 +172,7 @@ class ShootingSolver(object):
         jac = self._numeric_jacobian(x, V, **self.model.params)
         return jac
 
-    def evaluate_system(self, V, x):
+    def evaluate_system(self, x, V):
         r"""
         Numerically evaluate right-hand side of the system of ODEs.
 
