@@ -237,15 +237,32 @@ class ShootingSolver(object):
     def _exhausted_workers(self, bound, tol):
         return abs(self.integrator.t - bound) <= tol
 
+    def _reset_positive_assortative_solution(self, initial_firm_size):
+        x_upper, y_upper = self.model.workers.upper, self.model.firms.upper
+        initial_V = np.array([y_upper, initial_firm_size])
+        wage = self.evaluate_wage(x_upper, initial_V)
+        profit = self.evaluate_profit(x_upper, initial_V)
+        self.solution = np.hstack((x_upper, initial_V, wage, profit))
+
     def _solve_negative_assortative_matching(self):
         raise NotImplementedError
 
-    def _solve_positive_assortative_matching(self):
-        # set up the integrator
+    def _solve_positive_assortative_matching(self, initial_firm_size, tol, N,
+                                             integrator, **kwargs):
 
-        # set up a good initial condition
-        x_lower = self.model.workers.lower
-        y_lower = self.mode.firms.lower
+        # range of worker types
+        x_lower = self.model.workers.lower_bound
+        x_upper = self.model.workers.upper_bound
+
+        # range of worker types
+        y_lower = self.model.firms.lower_bound
+        y_upper = self.model.firms.upper_bound
+
+        # initial condition for the solver
+        init = np.array([y_upper, initial_firm_size])
+
+        # compute the optimal step size
+        step_size = (x_upper - x_lower) / (N - 1)
         solution = ?
 
         while self.integrator.successful():
@@ -276,7 +293,10 @@ class ShootingSolver(object):
                     break
                 # initial theta too high!
                 else:
-                    break
+                    firm_size_upper = initial_firm_size
+                    initial_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
+                    self._reset_positive_assortative_solution(initial_firm_size)
+
             elif self._exhausted_firms(y_lower, tol):
                 # "normal" equilibrium
                 if self._exhausted_workers(x_lower, tol):
@@ -286,7 +306,10 @@ class ShootingSolver(object):
                     break
                 # initial theta too low!
                 else:
-                    break
+                    firm_size_lower = initial_firm_size
+                    initial_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
+                    self._reset_positive_assortative_solution(initial_firm_size)
+
             else:
                 continue
 
