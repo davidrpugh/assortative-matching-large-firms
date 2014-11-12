@@ -237,7 +237,7 @@ class ShootingSolver(object):
         self.__numeric_profit = None
         self.__numeric_system = None
         self.__numeric_wage = None
-        self.__solver = None
+        self.__integrator = None
 
     def _converged_firms(self, bound, tol):
         """Check whether solution component for firms has converged."""
