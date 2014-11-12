@@ -279,10 +279,8 @@ class ShootingSolver(object):
 
             # compute profits and wages along putative equilibrium
             wage = self.evaluate_wage(x, V)
-            assert wage > 0.0, "Wage should be non-negative!"
 
             profit = self.evaluate_profit(x, V)
-            assert profit > 0.0, "Profit should be non-negative!"
 
             if self._exhausted_workers(x_lower, tol):
                 # "normal" equilibrium
@@ -368,6 +366,7 @@ class ShootingSolver(object):
 
         """
         profit = self._numeric_profit(x, V, **self.model.params)
+        assert profit > 0.0, "Profit should be non-negative!"
         return profit
 
     def evaluate_rhs(self, x, V):
@@ -411,6 +410,7 @@ class ShootingSolver(object):
 
         """
         wage = self._numeric_wage(x, V, **self.model.params)
+        assert wage > 0.0, "Wage should be non-negative!"
         return wage
 
     def solve(self):
