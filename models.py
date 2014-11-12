@@ -349,7 +349,7 @@ class DifferentiableMatching(object):
         raise NotImplementedError
 
     @property
-    def w(self):
+    def wage(self):
         """
         Symbolic expression for wages paid to workers.
 

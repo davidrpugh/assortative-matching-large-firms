@@ -15,6 +15,8 @@ class ShootingSolver(object):
 
     __numeric_system = None
 
+    __numeric_wage = None
+
     __integrator = None
 
     _modules = [{'ImmutableMatrix': np.array, 'erf': special.erf}, 'numpy']
@@ -55,6 +57,21 @@ class ShootingSolver(object):
                                                  self._symbolic_system,
                                                  self._modules)
         return self.__numeric_system
+
+    @property
+    def _numeric_wage(self):
+        """
+        Vectorized function for numerical evaluation of wages.
+
+        :getter: Return the current function for evaluating wages.
+        :type: function
+
+        """
+        if self.__numeric_wage is None:
+            self.__numeric_wage = sym.lambdify(self._symbolic_args,
+                                               self._symbolic_wage,
+                                               self._modules)
+        return self.__numeric_wage
 
     @property
     def _symbolic_args(self):
@@ -124,6 +141,18 @@ class ShootingSolver(object):
 
         """
         return [self.model.workers.var, V]
+
+    @property
+    def _symbolic_wage(self):
+        """
+        Symbolic expression defining wages.
+
+        :getter: Return the symbolic expression for wages
+        :type: sympy.Basic
+
+        """
+        wage = self.model.matching.wage
+        return wage.subs({'mu': V[0], 'theta': V[1]})
 
     @property
     def model(self):
@@ -219,6 +248,28 @@ class ShootingSolver(object):
         """
         rhs = self._numeric_system(x, V, **self.model.params).ravel()
         return rhs
+
+    def evaluate_wage(self, x, V):
+        r"""
+        Numerically evaluate wage for a worker with skill level x when matched
+        to a firm with productivity V[0] with size V[1].
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        wage : float
+            Worker's wage.
+
+        """
+        wage = self._numeric_wage(x, V, **self.model.params)
+        return wage
 
     def solve(self):
         if self.model.assortativity == 'positive':
