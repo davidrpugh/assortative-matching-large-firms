@@ -227,7 +227,51 @@ class ShootingSolver(object):
         raise NotImplementedError
 
     def _solve_positive_assortative_matching(self):
-        raise NotImplementedError
+        # set up the integrator
+
+        # set up a good initial condition
+        solution = ?
+
+        while self.integrator.successful():
+
+            # Walk the system forward one step
+            self.integrator.integrate(self.integrator.t - step_size)
+
+            # unpack the step
+            x, V = self.integrator.t, self.integrator.y
+            mu, theta = V
+
+            # firm size should always be non-negative
+            assert theta > 0.0, "Firm size should be non-negative!"
+
+            # compute profits and wages along putative equilibrium
+            wage = self.evaluate_wage(x, V)
+            assert wage > 0.0, "Wage should be non-negative!"
+
+            profit = self.evaluate_profit(x, V)
+            assert profit > 0.0, "Profit should be non-negative!"
+
+            if self._exhausted_workers():
+                if self._exhausted_firms():  # "normal" equilibrium
+                    break
+                elif self._profit_almost_zero():  # "excess" firms equilibrium
+                    break
+                else:  # initial theta too high!
+                    break
+            elif self._exhausted_firms():
+                if self._exhausted_workers():  # "normal" equilibrium
+                    assert "This case should have already been handled above!"
+                elif self._wage_almost_zero():  # "excess" workers equilibrium
+                    break
+                else:  # initial theta too low!
+                    break
+            else:
+                continue
+
+            step = np.hstack((x, V, wage, profit))
+            solution = np.vstack((solution, step))
+
+        return solution
 
     @staticmethod
     def _validate_model(model):
