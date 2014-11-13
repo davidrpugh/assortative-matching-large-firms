@@ -351,6 +351,40 @@ class DifferentiableMatching(object):
         return revenue - costs
 
     @property
+    def quantity_complementarity(self):
+        """
+        Symbolic expression for complementarity between input quantities.
+
+        :getter: Return the current expression for the complementarity.
+        :type: sympy.Basic
+
+        """
+        return self.model.Flr.subs(self._subs)
+
+    @property
+    def type_resource_complementarity(self):
+        """
+        Symbolic expression for complementarity between worker type and
+        firm resources.
+
+        :getter: Return the current expression for the complementarity.
+        :type: sympy.Basic
+
+        """
+        return self.model.Fxr.subs(self._subs)
+
+    @property
+    def span_of_control_complementarity(self):
+        """
+        Symbolic expression for span-of-control complementarity.
+
+        :getter: Return the current expression for the complementarity.
+        :type: sympy.Basic
+
+        """
+        return self.model.Fyl.subs(self._subs)
+
+    @property
     def theta_prime(self):
         """
         Differential equation describing the equilibrium firm size.
@@ -360,6 +394,17 @@ class DifferentiableMatching(object):
 
         """
         raise NotImplementedError
+
+    @property
+    def type_complementarity(self):
+        """
+        Symbolic expression for complementarity between input types.
+
+        :getter: Return the current expression for the complementarity.
+        :type: sympy.Basic
+
+        """
+        return self.model.Fxy.subs(self._subs)
 
     @property
     def wage(self):
