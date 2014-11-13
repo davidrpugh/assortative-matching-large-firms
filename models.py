@@ -308,6 +308,17 @@ class DifferentiableMatching(object):
         return self.model.workers.pdf / self.model.firms.pdf
 
     @property
+    def input_types(self):
+        """
+        Symbolic expression for complementarity between input types.
+
+        :getter: Return the current expression for the complementarity.
+        :type: sympy.Basic
+
+        """
+        return self.model.Fxy.subs(self._subs)
+
+    @property
     def model(self):
         """
         Instance of the model.Model class representing a matching model
@@ -351,7 +362,7 @@ class DifferentiableMatching(object):
         return revenue - costs
 
     @property
-    def quantity_complementarity(self):
+    def quantities(self):
         """
         Symbolic expression for complementarity between input quantities.
 
@@ -362,7 +373,7 @@ class DifferentiableMatching(object):
         return self.model.Flr.subs(self._subs)
 
     @property
-    def type_resource_complementarity(self):
+    def type_resource(self):
         """
         Symbolic expression for complementarity between worker type and
         firm resources.
@@ -374,7 +385,7 @@ class DifferentiableMatching(object):
         return self.model.Fxr.subs(self._subs)
 
     @property
-    def span_of_control_complementarity(self):
+    def span_of_control(self):
         """
         Symbolic expression for span-of-control complementarity.
 
@@ -394,17 +405,6 @@ class DifferentiableMatching(object):
 
         """
         raise NotImplementedError
-
-    @property
-    def type_complementarity(self):
-        """
-        Symbolic expression for complementarity between input types.
-
-        :getter: Return the current expression for the complementarity.
-        :type: sympy.Basic
-
-        """
-        return self.model.Fxy.subs(self._subs)
 
     @property
     def wage(self):

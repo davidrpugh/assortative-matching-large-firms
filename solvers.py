@@ -11,11 +11,19 @@ V = sym.DeferredVector('V')
 class ShootingSolver(object):
     """Solves a model using forward shooting."""
 
+    __numeric_input_types = None
+
     __numeric_jacobian = None
 
     __numeric_profit = None
 
+    __numeric_quantities = None
+
+    __numeric_span_of_control = None
+
     __numeric_system = None
+
+    __numeric_type_resource = None
 
     __numeric_wage = None
 
@@ -31,11 +39,27 @@ class ShootingSolver(object):
         self.model = model
 
     @property
+    def _numeric_input_types(self):
+        """
+        Vectorized function for numerical evaluation of the input type
+        complementarity.
+
+        :getter: Return current function for evaluating the complementarity.
+        :type: function
+
+        """
+        if self.__numeric_input_types is None:
+            self.__numeric_input_types = sym.lambdify(self._symbolic_args,
+                                                      self._symbolic_input_types,
+                                                      self._modules)
+        return self.__numeric_input_types
+
+    @property
     def _numeric_jacobian(self):
         """
         Vectorized function for numerical evaluation of model Jacobian.
 
-        :getter: Return the current function for evaluating the Jacobian.
+        :getter: Return current function for evaluating the Jacobian.
         :type: function
 
         """
@@ -50,7 +74,7 @@ class ShootingSolver(object):
         """
         Vectorized function for numerical evaluation of profits.
 
-        :getter: Return the current function for evaluating profits.
+        :getter: Return current function for evaluating profits.
         :type: function
 
         """
@@ -61,11 +85,43 @@ class ShootingSolver(object):
         return self.__numeric_profit
 
     @property
+    def _numeric_quantities(self):
+        """
+        Vectorized function for numerical evaluation of the quantity
+        complementarity.
+
+        :getter: Return current function for evaluating the complementarity.
+        :type: function
+
+        """
+        if self.__numeric_quantities is None:
+            self.__numeric_quantities = sym.lambdify(self._symbolic_args,
+                                                     self._symbolic_quantities,
+                                                     self._modules)
+        return self.__numeric_quantities
+
+    @property
+    def _numeric_span_of_control(self):
+        """
+        Vectorized function for numerical evaluation of the resource
+        complementarity.
+
+        :getter: Return current function for evaluating the complementarity.
+        :type: function
+
+        """
+        if self.__numeric_span_of_control is None:
+            self.__numeric_span_of_control = sym.lambdify(self._symbolic_args,
+                                                          self._symbolic_span_of_control,
+                                                          self._modules)
+        return self.__numeric_span_of_control
+
+    @property
     def _numeric_system(self):
         """
         Vectorized function for numerical evaluation of model system.
 
-        :getter: Return the current function for evaluating the system.
+        :getter: Return current function for evaluating the system.
         :type: function
 
         """
@@ -76,11 +132,27 @@ class ShootingSolver(object):
         return self.__numeric_system
 
     @property
+    def _numeric_type_resource(self):
+        """
+        Vectorized function for numerical evaluation of the resource
+        complementarity.
+
+        :getter: Return current function for evaluating the complementarity.
+        :type: function
+
+        """
+        if self.__numeric_type_resource is None:
+            self.__numeric_type_resource = sym.lambdify(self._symbolic_args,
+                                                        self._symbolic_type_resource,
+                                                        self._modules)
+        return self.__numeric_type_resource
+
+    @property
     def _numeric_wage(self):
         """
         Vectorized function for numerical evaluation of wages.
 
-        :getter: Return the current function for evaluating wages.
+        :getter: Return current function for evaluating wages.
         :type: function
 
         """
@@ -111,6 +183,18 @@ class ShootingSolver(object):
 
         """
         return [self.model.matching.mu_prime, self.model.matching.theta_prime]
+
+    @property
+    def _symbolic_input_types(self):
+        """
+        Symbolic expression for complementarity between input types.
+
+        :getter: Return the current expression for the complementarity.
+        :type: sympy.Basic
+
+        """
+        Fxy = self.model.matching.input_types
+        return Fxy.subs({'mu': V[0], 'theta': V[1]})
 
     @property
     def _symbolic_jacobian(self):
@@ -148,6 +232,30 @@ class ShootingSolver(object):
         return profit.subs({'mu': V[0], 'theta': V[1]})
 
     @property
+    def _symbolic_quantities(self):
+        """
+        Symbolic expression for complementarity between input quantities.
+
+        :getter: Return the current expression for the complementarity.
+        :type: sympy.Basic
+
+        """
+        Flr = self.model.matching.quantities
+        return Flr.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
+    def _symbolic_span_of_control(self):
+        """
+        Symbolic expression for span-of-control complementarity.
+
+        :getter: Return the current expression for the complementarity.
+        :type: sympy.Basic
+
+        """
+        Fyl = self.model.matching.span_of_control
+        return Fyl.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
     def _symbolic_system(self):
         """
         Symbolic matrix defining the right-hand side of a system of ODEs.
@@ -158,6 +266,19 @@ class ShootingSolver(object):
         """
         system = sym.Matrix(self._symbolic_equations)
         return system.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
+    def _symbolic_type_resource(self):
+        """
+        Symbolic expression for complementarity between worker type and
+        firm resources.
+
+        :getter: Return the current expression for the complementarity.
+        :type: sympy.Basic
+
+        """
+        Fxr = self.model.matching.type_resource
+        return Fxr.subs({'mu': V[0], 'theta': V[1]})
 
     @property
     def _symbolic_variables(self):
@@ -203,10 +324,19 @@ class ShootingSolver(object):
 
     @property
     def solution(self):
+        """
+        Solution to the model.
+
+        :getter: Return the new solution to the model.
+        :setter: Set a new initial value for the solution array.
+        :type: numpy.ndarray
+
+        """
         return self._solution
 
     @solution.setter
     def solution(self, value):
+        """Set a new value for the solution array."""
         self._solution = value
 
     @property
@@ -223,11 +353,39 @@ class ShootingSolver(object):
                                               jac=self.evaluate_jacobian)
         return self.__integrator
 
+    def _check_positive_assortative_matching(self, x, V):
+        r"""
+        Check necessary condition required for a positive assortative
+        matching.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        check : boolean
+            Flag indicating whether positive assortative matching is satisfied.
+
+        """
+        LHS = self.evaluate_input_types(x, V) * self.evaluate_quantities(x, V)
+        RHS = self.evaluate_span_of_control(x, V) * self.evaluate_type_resource(x, V)
+        check = (LHS >= RHS)
+        return check
+
     def _clear_cache(self):
         """Clear cached functions used for numerical evaluation."""
+        self.__numeric_input_types = None
         self.__numeric_jacobian = None
         self.__numeric_profit = None
+        self.__numeric_quantities = None
+        self.__numeric_span_of_control = None
         self.__numeric_system = None
+        self.__numeric_type_resource = None
         self.__numeric_wage = None
         self.__integrator = None
 
@@ -319,9 +477,6 @@ class ShootingSolver(object):
                 print(mesg)
                 break
 
-            #if self._check_matching_conditions():
-            #    pass
-
             # walk the system forward one step
             self.integrator.integrate(self.integrator.t + step_size)
 
@@ -329,6 +484,9 @@ class ShootingSolver(object):
             x, V = self.integrator.t, self.integrator.y
             mu, theta = V
             assert theta > 0.0, "Firm size should be non-negative!"
+
+            # check that PAM condition is satisfied locally
+            assert not self._check_positive_assortative_matching(x, V)
 
             # update the putative equilibrium solution
             wage = self.evaluate_wage(x, V)
@@ -401,6 +559,9 @@ class ShootingSolver(object):
             mu, theta = V
             assert theta > 0.0, "Firm size should be non-negative!"
 
+            # check that PAM condition is satisfied locally
+            assert self._check_positive_assortative_matching(x, V)
+
             # update the putative equilibrium solution
             wage = self.evaluate_wage(x, V)
             profit = self.evaluate_profit(x, V)
@@ -444,6 +605,27 @@ class ShootingSolver(object):
             raise AttributeError(mesg.format(model.__class__))
         else:
             return model
+
+    def evaluate_input_types(self, x, V):
+        r"""
+        Numerically evaluate complementarity between input types.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        input_types : float
+            Complementarity between input types.
+
+        """
+        input_types = self._numeric_input_types(x, V, **self.model.params)
+        return input_types
 
     def evaluate_jacobian(self, x, V):
         r"""
@@ -509,6 +691,70 @@ class ShootingSolver(object):
         """
         rhs = self._numeric_system(x, V, **self.model.params).ravel()
         return rhs
+
+    def evaluate_quantities(self, x, V):
+        r"""
+        Numerically evaluate quantities complementarity.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        quantities : float
+            Complementarity between quantities
+
+        """
+        quantities = self._numeric_quantities(x, V, **self.model.params)
+        return quantities
+
+    def evaluate_type_resource(self, x, V):
+        r"""
+        Numerically evaluate complementarity between worker skill and
+        firm resources.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        resource : float
+            Complementarity between worker skill and firm resources.
+
+        """
+        resource = self._numeric_type_resource(x, V, **self.model.params)
+        return resource
+
+    def evaluate_span_of_control(self, x, V):
+        r"""
+        Numerically evaluate span-of-control complementarity.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        span_of_control : float
+            Span-of-control complementarity.
+
+        """
+        span_of_control = self._numeric_span_of_control(x, V, **self.model.params)
+        return span_of_control
 
     def evaluate_wage(self, x, V):
         r"""
