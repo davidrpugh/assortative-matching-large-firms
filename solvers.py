@@ -368,78 +368,31 @@ class ShootingSolver(object):
             step = np.hstack((x, V, wage, profit))
             self.solution = np.vstack((self.solution, step))
 
-            if self._exhausted_workers(x_upper, tol):
-                mesg = ("Initial guess of {} for firm size is too high!" +
-                        " (run out of workers) ")
-                print(mesg.format(guess_firm_size))
-                firm_size_upper = guess_firm_size
-                guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-                self._reset_negative_assortative_solution(guess_firm_size)
+            if self._converged_workers(x_upper, tol) and self._converged_firms(y_lower, tol):
+                mesg = ("Success! All workers and firms are matched")
+                print(mesg)
+                break
 
-            elif self._exhausted_firms(y_lower, tol):
-                mesg = ("Initial guess of {} for firm size is too low!" +
-                        "(run out of firms)")
+            elif (not self._converged_workers(x_upper, tol)) and self._exhausted_firms(y_lower, tol):
+                mesg = "Exhausted firms: initial guess of {} for firm size is too low."
                 print(mesg.format(guess_firm_size))
                 firm_size_lower = guess_firm_size
                 guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
                 self._reset_negative_assortative_solution(guess_firm_size)
 
-            elif self._converged_workers(x_upper, tol):
-                if self._converged_firms(y_lower, tol):
-                    mesg = ("Success! Found equilibrium where all workers " +
-                            "and firms are matched")
-                    print(mesg)
-                    break
+            elif self._converged_workers(x_upper, tol) and self._exhausted_firms(y_lower, tol):
+                mesg = "Exhausted firms: Initial guess of {} for firm size was too low!"
+                print(mesg.format(guess_firm_size))
+                firm_size_lower = guess_firm_size
+                guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
+                self._reset_negative_assortative_solution(guess_firm_size)
 
-                elif ((not self._exhausted_firms(y_lower, tol)) and
-                      self._almost_zero_profit(profit, tol)):
-                    mesg = "Success! Found equilibrium with excess firms."
-                    print(mesg)
-                    break
-
-                elif((not self._exhausted_firms(y_lower, tol)) and
-                     (not self._almost_zero_profit(profit, tol))):
-                    mesg = ("Firms about and positive profits to be had: " +
-                            "initial guess of {} for firm size is too high!")
-                    print(mesg.format(guess_firm_size))
-                    firm_size_upper = guess_firm_size
-                    guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-                    self._reset_negative_assortative_solution(guess_firm_size)
-
-                else:
-                    mesg = ("Exhausted all firms: initial guess of {} for " +
-                            "firm size is too low!")
-                    print(mesg.format(guess_firm_size))
-                    firm_size_lower = guess_firm_size
-                    guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-                    self._reset_negative_assortative_solution(guess_firm_size)
-
-            elif self._converged_firms(y_lower, tol):
-                if self._converged_workers(x_upper, tol):
-                    assert "This case should have already been handled above!"
-
-                elif ((not self._exhausted_workers(x_upper, tol)) and
-                      self._almost_zero_wage(wage, tol)):
-                    mesg = "Success! Found equilibrium with excess workers."
-                    print(mesg)
-                    break
-
-                elif ((not self._exhausted_workers(x_upper, tol)) and
-                      (not self._almost_zero_wage(wage, tol))):
-                    mesg = ("Workers still unmatched but wages are not zero: "
-                            "initial guess of {} for firm size is too low.")
-                    print(mesg.format(guess_firm_size))
-                    firm_size_lower = guess_firm_size
-                    guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-                    self._reset_negative_assortative_solution(guess_firm_size)
-
-                else:
-                    mesg = ("Exhausted all workers: initial guess of {} for " +
-                            "firm size is too high!")
-                    print(mesg.format(guess_firm_size))
-                    firm_size_upper = guess_firm_size
-                    guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-                    self._reset_negative_assortative_solution(guess_firm_size)
+            elif self._converged_workers(x_upper, tol) and (not self._exhausted_firms(y_lower, tol)):
+                mesg = "Exhausted workers: initial guess of {} for firm size is too high!"
+                print(mesg.format(guess_firm_size))
+                firm_size_upper = guess_firm_size
+                guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
+                self._reset_negative_assortative_solution(guess_firm_size)
 
             else:
                 continue
