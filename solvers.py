@@ -394,14 +394,16 @@ class ShootingSolver(object):
 
                 elif((not self._exhausted_firms(y_lower, tol)) and
                      (not self._almost_zero_profit(profit, tol))):
-                    mesg = "Initial guess of {} for firm size is too high!"
+                    mesg = ("Firms about and positive profits to be had: " +
+                            "initial guess of {} for firm size is too high!")
                     print(mesg.format(guess_firm_size))
                     firm_size_upper = guess_firm_size
                     guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
                     self._reset_negative_assortative_solution(guess_firm_size)
 
                 else:
-                    mesg = "Initial guess of {} for firm size is too low!"
+                    mesg = ("Exhausted all firms: initial guess of {} for " +
+                            "firm size is too low!")
                     print(mesg.format(guess_firm_size))
                     firm_size_lower = guess_firm_size
                     guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
@@ -419,14 +421,16 @@ class ShootingSolver(object):
 
                 elif ((not self._exhausted_workers(x_upper, tol)) and
                       (not self._almost_zero_wage(wage, tol))):
-                    mesg = "Initial guess of {} for firm size is too low."
+                    mesg = ("Workers still unmatched but wages are not zero: "
+                            "initial guess of {} for firm size is too low.")
                     print(mesg.format(guess_firm_size))
                     firm_size_lower = guess_firm_size
                     guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
                     self._reset_negative_assortative_solution(guess_firm_size)
 
                 else:
-                    mesg = "Initial guess of {} for firm size is too high!"
+                    mesg = ("Exhausted all workers: initial guess of {} for " +
+                            "firm size is too high!")
                     print(mesg.format(guess_firm_size))
                     firm_size_upper = guess_firm_size
                     guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
