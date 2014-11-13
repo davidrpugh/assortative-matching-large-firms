@@ -366,14 +366,16 @@ class ShootingSolver(object):
             self.solution = np.vstack((self.solution, step))
 
             if self._exhausted_workers(x_upper, tol):
-                mesg = "Initial guess of {} for firm size is too high!"
+                mesg = ("Initial guess of {} for firm size is too high!" +
+                        " (run out of workers) ")
                 print(mesg.format(guess_firm_size))
                 firm_size_upper = guess_firm_size
                 guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
                 self._reset_negative_assortative_solution(guess_firm_size)
 
             elif self._exhausted_firms(y_lower, tol):
-                mesg = "Initial guess of {} for firm size is too low!"
+                mesg = ("Initial guess of {} for firm size is too low!" +
+                        "(run out of firms)")
                 print(mesg.format(guess_firm_size))
                 firm_size_lower = guess_firm_size
                 guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
