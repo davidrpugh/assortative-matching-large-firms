@@ -449,153 +449,51 @@ class ShootingSolver(object):
             profit = self.evaluate_profit(x_lower, initial_V)
             self.solution = np.hstack((x_lower, initial_V, wage, profit))
 
-    def _solve_negative_assortative_matching(self, guess_firm_size_upper, tol,
-                                             number_knots, integrator, **kwargs):
-        """Solve for negative assortative matching equilibrium."""
+    def _update_initial_guess(self, lower, upper):
+        """
+        Use bisection method to arrive at new initial guess for firm size.
 
-        # relevant bounds
-        x_lower = self.model.workers.lower
-        x_upper = self.model.workers.upper
+        Parameters
+        ----------
+        lower : float
+            Lower bound on the true initial condition for firm size.
+        upper : float
+            Upper bound on the true initial condition for firm size.
 
-        # initialize integrator
-        self.integrator.set_integrator(integrator, **kwargs)
+        Returns
+        -------
+        guess : float
+            New initial guess for firm size.
 
-        # initialize the solution
-        firm_size_lower = 0.0
-        firm_size_upper = guess_firm_size_upper
-        guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-        self._reset_solution(guess_firm_size)
+        """
+        guess = 0.5 * (lower + upper)
+        return guess
 
-        # step size insures that never step beyond x_lower
-        step_size = (x_upper - x_lower) / (number_knots - 1)
+    def _update_solution(self, step_size):
+        """
+        Update the solution array.
 
-        while self.integrator.successful():
+        Parameters
+        ----------
+        step_size : float
+            Step size for determining next point in the solution.
 
-            if self._guess_firm_size_upper_too_low(guess_firm_size_upper, tol):
-                mesg = ("Failure! Need to increase initial guess for upper " +
-                        "bound on firm size!")
-                print(mesg)
-                break
-
-            # walk the system forward one step
-            self.integrator.integrate(self.integrator.t + step_size)
-
-            # unpack the components of the new step
-            x, V = self.integrator.t, self.integrator.y
-            mu, theta = V
-            assert theta > 0.0, "Firm size should be non-negative!"
-
-            # check that PAM condition is satisfied locally
-            assert not self._check_positive_assortative_matching(x, V)
-
-            # update the putative equilibrium solution
-            wage = self.evaluate_wage(x, V)
-            profit = self.evaluate_profit(x, V)
-            step = np.hstack((x, V, wage, profit))
-            self.solution = np.vstack((self.solution, step))
-
-            if self._converged_workers(tol) and self._converged_firms(tol):
-                mesg = ("Success! All workers and firms are matched")
-                print(mesg)
-                break
-
-            elif (not self._converged_workers(tol)) and self._exhausted_firms(tol):
-                mesg = "Exhausted firms: initial guess of {} for firm size is too low."
-                print(mesg.format(guess_firm_size))
-                firm_size_lower = guess_firm_size
-                guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-                self._reset_solution(guess_firm_size)
-
-            elif self._converged_workers(tol) and self._exhausted_firms(tol):
-                mesg = "Exhausted firms: Initial guess of {} for firm size was too low!"
-                print(mesg.format(guess_firm_size))
-                firm_size_lower = guess_firm_size
-                guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-                self._reset_solution(guess_firm_size)
-
-            elif self._converged_workers(tol) and (not self._exhausted_firms(tol)):
-                mesg = "Exhausted workers: initial guess of {} for firm size is too high!"
-                print(mesg.format(guess_firm_size))
-                firm_size_upper = guess_firm_size
-                guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-                self._reset_solution(guess_firm_size)
-
-            else:
-                continue
-
-    def _solve_positive_assortative_matching(self, guess_firm_size_upper, tol,
-                                             number_knots, integrator, **kwargs):
-        """Solve for positive assortative matching equilibrium."""
-
-        # relevant bounds
-        x_lower = self.model.workers.lower
-        x_upper = self.model.workers.upper
-
-        # initialize integrator
-        self.integrator.set_integrator(integrator, **kwargs)
-
-        # initialize the solution
-        firm_size_lower = 0.0
-        firm_size_upper = guess_firm_size_upper
-        guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-        self._reset_solution(guess_firm_size)
-
-        # step size insures that never step beyond x_lower
-        step_size = (x_upper - x_lower) / (number_knots - 1)
-
-        while self.integrator.successful():
-
-            if self._guess_firm_size_upper_too_low(guess_firm_size_upper, tol):
-                mesg = ("Failure! Need to increase initial guess for upper " +
-                        "bound on firm size!")
-                print(mesg)
-                break
-
-            # walk the system forward one step
+        """
+        if self.model.assortativity == 'positive':
             self.integrator.integrate(self.integrator.t - step_size)
-
-            # unpack the components of the new step
             x, V = self.integrator.t, self.integrator.y
-            mu, theta = V
-            assert theta > 0.0, "Firm size should be non-negative!"
-
-            # check that PAM condition is satisfied locally
             assert self._check_positive_assortative_matching(x, V)
+        else:
+            self.integrator.integrate(self.integrator.t + step_size)
+            x, V = self.integrator.t, self.integrator.y
+            assert not self._check_positive_assortative_matching(x, V)
+        assert V[1] > 0.0, "Firm size should be non-negative!"
 
-            # update the putative equilibrium solution
-            wage = self.evaluate_wage(x, V)
-            profit = self.evaluate_profit(x, V)
-            step = np.hstack((x, V, wage, profit))
-            self.solution = np.vstack((self.solution, step))
-
-            if self._converged_workers(tol) and self._converged_firms(tol):
-                mesg = ("Success! All workers and firms are matched")
-                print(mesg)
-                break
-
-            elif (not self._converged_workers(tol)) and self._exhausted_firms(tol):
-                mesg = "Exhausted firms: initial guess of {} for firm size is too low."
-                print(mesg.format(guess_firm_size))
-                firm_size_lower = guess_firm_size
-                guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-                self._reset_solution(guess_firm_size)
-
-            elif self._converged_workers(tol) and self._exhausted_firms(tol):
-                mesg = "Exhausted firms: Initial guess of {} for firm size was too low!"
-                print(mesg.format(guess_firm_size))
-                firm_size_lower = guess_firm_size
-                guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-                self._reset_solution(guess_firm_size)
-
-            elif self._converged_workers(tol) and (not self._exhausted_firms(tol)):
-                mesg = "Exhausted workers: initial guess of {} for firm size is too high!"
-                print(mesg.format(guess_firm_size))
-                firm_size_upper = guess_firm_size
-                guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
-                self._reset_solution(guess_firm_size)
-
-            else:
-                continue
+        # update the putative equilibrium solution
+        wage = self.evaluate_wage(x, V)
+        profit = self.evaluate_profit(x, V)
+        step = np.hstack((x, V, wage, profit))
+        self.solution = np.vstack((self.solution, step))
 
     @staticmethod
     def _validate_model(model):
@@ -781,11 +679,57 @@ class ShootingSolver(object):
 
     def solve(self, guess_firm_size_upper, tol=1e-6, number_knots=100,
               integrator='dopri5', **kwargs):
-        if self.model.assortativity == 'positive':
-            self._solve_positive_assortative_matching(guess_firm_size_upper,
-                                                      tol, number_knots,
-                                                      integrator, **kwargs)
-        else:
-            self._solve_negative_assortative_matching(guess_firm_size_upper,
-                                                      tol, number_knots,
-                                                      integrator, **kwargs)
+        """Solve for assortative matching equilibrium."""
+
+        # relevant bounds
+        x_lower = self.model.workers.lower
+        x_upper = self.model.workers.upper
+
+        # initialize integrator
+        self.integrator.set_integrator(integrator, **kwargs)
+
+        # initialize the solution
+        firm_size_lower = 0.0
+        firm_size_upper = guess_firm_size_upper
+        guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
+        self._reset_solution(guess_firm_size)
+
+        # step size insures that never step beyond x_lower
+        step_size = (x_upper - x_lower) / (number_knots - 1)
+
+        while self.integrator.successful():
+
+            if self._guess_firm_size_upper_too_low(guess_firm_size_upper, tol):
+                mesg = ("Failure! Need to increase initial guess for upper " +
+                        "bound on firm size!")
+                print(mesg)
+                break
+
+            self._update_solution(step_size)
+
+            if self._converged_workers(tol) and self._converged_firms(tol):
+                mesg = ("Success! All workers and firms are matched")
+                print(mesg)
+                break
+
+            elif (not self._converged_workers(tol)) and self._exhausted_firms(tol):
+                mesg = "Exhausted firms: initial guess of {} for firm size is too low."
+                print(mesg.format(guess_firm_size))
+                firm_size_lower = guess_firm_size
+
+            elif self._converged_workers(tol) and self._exhausted_firms(tol):
+                mesg = "Exhausted firms: Initial guess of {} for firm size was too low!"
+                print(mesg.format(guess_firm_size))
+                firm_size_lower = guess_firm_size
+
+            elif self._converged_workers(tol) and (not self._exhausted_firms(tol)):
+                mesg = "Exhausted workers: initial guess of {} for firm size is too high!"
+                print(mesg.format(guess_firm_size))
+                firm_size_upper = guess_firm_size
+
+            else:
+                continue
+
+            guess_firm_size = self._update_initial_guess(firm_size_lower,
+                                                         firm_size_upper)
+            self._reset_solution(guess_firm_size)
