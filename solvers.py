@@ -223,14 +223,6 @@ class ShootingSolver(object):
                                               jac=self.evaluate_jacobian)
         return self.__integrator
 
-    @staticmethod
-    def _almost_zero_profit(profit, tol):
-        return profit <= tol
-
-    @staticmethod
-    def _almost_zero_wage(wage, tol):
-        return wage <= tol
-
     def _clear_cache(self):
         """Clear cached functions used for numerical evaluation."""
         self.__numeric_jacobian = None
