@@ -484,6 +484,8 @@ class ShootingSolver(object):
             New initial guess for firm size.
 
         """
+        err_mesg = 'Upper and lower bounds are identical: check solver tols!'
+        assert (upper - lower) > np.finfo('float').eps, err_mesg
         guess = 0.5 * (lower + upper)
         return guess
 
