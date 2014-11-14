@@ -164,6 +164,23 @@ class ShootingSolver(object):
         return self.__numeric_wage
 
     @property
+    def _solution(self):
+        """
+        Solution to the model represented as a NumPy array.
+
+        :getter: Return the array represnting the current solution
+        :setter: Set a new array defining the solution.
+        :type: numpy.ndarray
+
+        """
+        return self.__solution
+
+    @_solution.setter
+    def _solution(self, value):
+        """Set a new value for the solution array."""
+        self.__solution = value
+
+    @property
     def _symbolic_args(self):
         """
         Symbolic arguments used when lambdifying symbolic Jacobian and system.
@@ -334,24 +351,11 @@ class ShootingSolver(object):
         """
         col_names = ['x', 'firm productivity', 'firm size', 'wage', 'profit']
         df = pd.DataFrame(self._solution, columns=col_names)
+        if self.model.assortativity == 'positive':
+            df.sort('x', inplace=True)
+        else:
+            pass
         return df.set_index('x')
-
-    @property
-    def _solution(self):
-        """
-        Solution to the model represented as a NumPy array.
-
-        :getter: Return the array represnting the current solution
-        :setter: Set a new array defining the solution.
-        :type: numpy.ndarray
-
-        """
-        return self.__solution
-
-    @_solution.setter
-    def _solution(self, value):
-        """Set a new value for the solution array."""
-        self.__solution = value
 
     @property
     def integrator(self):
