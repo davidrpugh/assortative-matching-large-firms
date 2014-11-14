@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from scipy import integrate, special
 import sympy as sym
 
@@ -325,19 +326,32 @@ class ShootingSolver(object):
     @property
     def solution(self):
         """
-        Solution to the model.
+        Solution to the model represented as a Pandas DataFrame.
 
-        :getter: Return the new solution to the model.
-        :setter: Set a new initial value for the solution array.
+        :getter: Return the DataFrame representing the current solution.
+        :type: pandas.DataFrame
+
+        """
+        col_names = ['x', 'firm productivity', 'firm size', 'wage', 'profit']
+        df = pd.DataFrame(self._solution, columns=col_names)
+        return df.set_index('x')
+
+    @property
+    def _solution(self):
+        """
+        Solution to the model represented as a NumPy array.
+
+        :getter: Return the array represnting the current solution
+        :setter: Set a new array defining the solution.
         :type: numpy.ndarray
 
         """
-        return self._solution
+        return self.__solution
 
-    @solution.setter
-    def solution(self, value):
+    @_solution.setter
+    def _solution(self, value):
         """Set a new value for the solution array."""
-        self._solution = value
+        self.__solution = value
 
     @property
     def integrator(self):
@@ -442,12 +456,12 @@ class ShootingSolver(object):
             self.integrator.set_initial_value(initial_V, x_upper)
             wage = self.evaluate_wage(x_upper, initial_V)
             profit = self.evaluate_profit(x_upper, initial_V)
-            self.solution = np.hstack((x_upper, initial_V, wage, profit))
+            self._solution = np.hstack((x_upper, initial_V, wage, profit))
         else:
             self.integrator.set_initial_value(initial_V, x_lower)
             wage = self.evaluate_wage(x_lower, initial_V)
             profit = self.evaluate_profit(x_lower, initial_V)
-            self.solution = np.hstack((x_lower, initial_V, wage, profit))
+            self._solution = np.hstack((x_lower, initial_V, wage, profit))
 
     def _update_initial_guess(self, lower, upper):
         """
@@ -493,7 +507,7 @@ class ShootingSolver(object):
         wage = self.evaluate_wage(x, V)
         profit = self.evaluate_profit(x, V)
         step = np.hstack((x, V, wage, profit))
-        self.solution = np.vstack((self.solution, step))
+        self._solution = np.vstack((self._solution, step))
 
     @staticmethod
     def _validate_model(model):
