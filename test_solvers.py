@@ -80,7 +80,8 @@ class MultiplicativeSeparabilityCase(unittest.TestCase):
         # approach solution from below
         guess_firm_size_upper = 1.5
         self.solver.solve(guess_firm_size_upper, tol=1e-9, number_knots=10,
-                          atol=1e-15, rtol=1e-12)
+                          integrator='lsoda', with_jacobian=True, atol=1e-15,
+                          rtol=1e-12)
 
         # conduct the test
         T = self.solver.solution.shape[0]
