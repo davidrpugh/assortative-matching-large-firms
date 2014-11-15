@@ -74,7 +74,7 @@ class MultiplicativeSeparabilityCase(unittest.TestCase):
         # conduct the test
         T = self.solver.solution.shape[0]
         expected_theta = np.ones(T)
-        actual_theta = self.solver.solution[:, 2]
+        actual_theta = self.solver.solution['firm size']
         np.testing.assert_almost_equal(expected_theta, actual_theta)
 
         # approach solution from below
@@ -85,5 +85,5 @@ class MultiplicativeSeparabilityCase(unittest.TestCase):
         # conduct the test
         T = self.solver.solution.shape[0]
         expected_theta = np.ones(T)
-        actual_theta = self.solver.solution[:, 2]
+        actual_theta = self.solver.solution['firm size']
         np.testing.assert_almost_equal(expected_theta, actual_theta)
