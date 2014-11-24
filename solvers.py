@@ -323,6 +323,20 @@ class ShootingSolver(object):
         return wage.subs({'mu': V[0], 'theta': V[1]})
 
     @property
+    def integrator(self):
+        """
+        Integrator for solving a system of ordinary differential equations.
+
+        :getter: Return the current integrator.
+        :type: scipy.integrate.ode
+
+        """
+        if self.__integrator is None:
+            self.__integrator = integrate.ode(f=self.evaluate_rhs,
+                                              jac=self.evaluate_jacobian)
+        return self.__integrator
+
+    @property
     def model(self):
         """
         Instance of the models.Model class to be solved via forward shooting.
@@ -356,20 +370,6 @@ class ShootingSolver(object):
         else:
             pass
         return df.set_index('x')
-
-    @property
-    def integrator(self):
-        """
-        Integrator for solving a system of ordinary differential equations.
-
-        :getter: Return the current integrator.
-        :type: scipy.integrate.ode
-
-        """
-        if self.__integrator is None:
-            self.__integrator = integrate.ode(f=self.evaluate_rhs,
-                                              jac=self.evaluate_jacobian)
-        return self.__integrator
 
     def _check_positive_assortative_matching(self, x, V):
         r"""
