@@ -489,7 +489,7 @@ class ShootingSolver(object):
         guess = 0.5 * (lower + upper)
         return guess
 
-    def _update_solution(self, step_size):
+    def _update_solution(self, step_size, check):
         """
         Update the solution array.
 
@@ -502,11 +502,15 @@ class ShootingSolver(object):
         if self.model.assortativity == 'positive':
             self.integrator.integrate(self.integrator.t - step_size)
             x, V = self.integrator.t, self.integrator.y
-            assert self._check_positive_assortative_matching(x, V)
+            if check:
+                mesg = "Positive assortative matching (PAM) condition failed!"
+                assert self._check_positive_assortative_matching(x, V), mesg
         else:
             self.integrator.integrate(self.integrator.t + step_size)
             x, V = self.integrator.t, self.integrator.y
-            assert not self._check_positive_assortative_matching(x, V)
+            if check:
+                mesg = "Negative assortative matching (NAM) condition failed!"
+                assert not self._check_positive_assortative_matching(x, V), mesg
         assert V[1] > 0.0, "Firm size should be non-negative!"
 
         # update the putative equilibrium solution
@@ -698,7 +702,7 @@ class ShootingSolver(object):
         return wage
 
     def solve(self, guess_firm_size_upper, tol=1e-6, number_knots=100,
-              integrator='dopri5', **kwargs):
+              integrator='dopri5', check=True, **kwargs):
         """Solve for assortative matching equilibrium."""
 
         # relevant bounds
@@ -716,6 +720,7 @@ class ShootingSolver(object):
 
         # step size insures that never step beyond x_lower
         step_size = (x_upper - x_lower) / (number_knots - 1)
+        assert step_size > 0
 
         while self.integrator.successful():
 
@@ -725,7 +730,7 @@ class ShootingSolver(object):
                 print(mesg)
                 break
 
-            self._update_solution(step_size)
+            self._update_solution(step_size, check)
 
             if self._converged_workers(tol) and self._converged_firms(tol):
                 mesg = ("Success! All workers and firms are matched")
