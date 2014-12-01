@@ -3,3 +3,4 @@
 
 # ignore coverage files
 .coverage
+.ipynb_checkpoints/
