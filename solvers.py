@@ -546,7 +546,7 @@ class ShootingSolver(object):
             Complementarity between input types.
 
         """
-        input_types = self._numeric_input_types(x, V, **self.model.params)
+        input_types = self._numeric_input_types(x, V, *self.model.params.values())
         return input_types
 
     def evaluate_jacobian(self, x, V):
@@ -567,7 +567,7 @@ class ShootingSolver(object):
             Jacobian matrix of partial derivatives.
 
         """
-        jac = self._numeric_jacobian(x, V, **self.model.params)
+        jac = self._numeric_jacobian(x, V, *self.model.params.values())
         return jac
 
     def evaluate_profit(self, x, V):
@@ -589,7 +589,7 @@ class ShootingSolver(object):
             Firm's profit.
 
         """
-        profit = self._numeric_profit(x, V, **self.model.params)
+        profit = self._numeric_profit(x, V, *self.model.params.values())
         assert profit > 0.0, "Profit should be non-negative!"
         return profit
 
@@ -611,7 +611,7 @@ class ShootingSolver(object):
             Right hand side of the system of ODEs.
 
         """
-        rhs = self._numeric_system(x, V, **self.model.params).ravel()
+        rhs = self._numeric_system(x, V, *self.model.params.values()).ravel()
         return rhs
 
     def evaluate_quantities(self, x, V):
@@ -632,7 +632,7 @@ class ShootingSolver(object):
             Complementarity between quantities
 
         """
-        quantities = self._numeric_quantities(x, V, **self.model.params)
+        quantities = self._numeric_quantities(x, V, *self.model.params.values())
         return quantities
 
     def evaluate_type_resource(self, x, V):
@@ -654,7 +654,7 @@ class ShootingSolver(object):
             Complementarity between worker skill and firm resources.
 
         """
-        resource = self._numeric_type_resource(x, V, **self.model.params)
+        resource = self._numeric_type_resource(x, V, *self.model.params.values())
         return resource
 
     def evaluate_span_of_control(self, x, V):
@@ -675,7 +675,7 @@ class ShootingSolver(object):
             Span-of-control complementarity.
 
         """
-        span_of_control = self._numeric_span_of_control(x, V, **self.model.params)
+        span_of_control = self._numeric_span_of_control(x, V, *self.model.params.values())
         return span_of_control
 
     def evaluate_wage(self, x, V):
@@ -697,7 +697,7 @@ class ShootingSolver(object):
             Worker's wage.
 
         """
-        wage = self._numeric_wage(x, V, **self.model.params)
+        wage = self._numeric_wage(x, V, *self.model.params.values())
         assert wage > 0.0, "Wage should be non-negative!"
         return wage
 
