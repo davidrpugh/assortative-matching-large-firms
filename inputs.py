@@ -238,7 +238,7 @@ class Input(object):
             Evaluated CDF.
 
         """
-        out = self._numeric_cdf(value, **self.params)
+        out = self._numeric_cdf(value, *self.params.values())
         return out
 
     def evaluate_pdf(self, value, norm=True):
@@ -260,7 +260,8 @@ class Input(object):
 
         """
         if norm:
-            out = self._numeric_pdf(value, **self.params) / self.norm_constant
+            out = (self._numeric_pdf(value, *self.params.values()) /
+                   self.norm_constant)
         else:
-            out = self._numeric_pdf(value, **self.params)
+            out = self._numeric_pdf(value, *self.params.values())
         return out
