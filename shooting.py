@@ -1,419 +1,813 @@
-from scipy import integrate
+import numpy as np
+import pandas as pd
+from scipy import integrate, special
+import sympy as sym
 
-from traits.api import Float, HasPrivateTraits, Instance, Property, Str, Tuple
+import models
 
-import sandbox
+# represent endogenous variables mu and theta as a deferred vector
+V = sym.DeferredVector('V')
 
-class ShootingSolver(HasPrivateTraits):
-    """Class representing a simple shooting solver."""
 
-    _initial_condition = Property(Tuple)
+class ShootingSolver(object):
+    """Solves a model using forward shooting."""
 
-    _integrator = Property(Instance(integrate.ode), 
-                           depends_on=['_initial_condition', 'model'])
+    __numeric_input_types = None
 
-    # need to validate this trait!
-    integrator = Str('dopri5')
-    
-    model = Instance(sandbox.Model)
+    __numeric_jacobian = None
 
-    theta0 = Float(1.0)
+    __numeric_profit = None
 
-    def _get__initial_condition(self):
-        """Initial condition for the solver."""
-        
-        x_lower = self.model.workers.lower_bound
-        x_upper = self.model.workers.upper_bound
-        y_upper = self.model.firms.upper_bound
+    __numeric_quantities = None
 
-        if self.model.matching =='pam':
-            init = (np.array([self.theta0, y_upper]), x_upper)
+    __numeric_span_of_control = None
+
+    __numeric_system = None
+
+    __numeric_type_resource = None
+
+    __numeric_wage = None
+
+    __integrator = None
+
+    _modules = [{'ImmutableMatrix': np.array, 'erf': special.erf}, 'numpy']
+
+    def __init__(self, model):
+        """
+        Create an instance of the ShootingSolver class.
+
+        """
+        self.model = model
+
+    @property
+    def _numeric_input_types(self):
+        """
+        Vectorized function for numerical evaluation of the input type
+        complementarity.
+
+        :getter: Return current function for evaluating the complementarity.
+        :type: function
+
+        """
+        if self.__numeric_input_types is None:
+            self.__numeric_input_types = sym.lambdify(self._symbolic_args,
+                                                      self._symbolic_input_types,
+                                                      self._modules)
+        return self.__numeric_input_types
+
+    @property
+    def _numeric_jacobian(self):
+        """
+        Vectorized function for numerical evaluation of model Jacobian.
+
+        :getter: Return current function for evaluating the Jacobian.
+        :type: function
+
+        """
+        if self.__numeric_jacobian is None:
+            self.__numeric_jacobian = sym.lambdify(self._symbolic_args,
+                                                   self._symbolic_jacobian,
+                                                   self._modules)
+        return self.__numeric_jacobian
+
+    @property
+    def _numeric_profit(self):
+        """
+        Vectorized function for numerical evaluation of profits.
+
+        :getter: Return current function for evaluating profits.
+        :type: function
+
+        """
+        if self.__numeric_profit is None:
+            self.__numeric_profit = sym.lambdify(self._symbolic_args,
+                                                 self._symbolic_profit,
+                                                 self._modules)
+        return self.__numeric_profit
+
+    @property
+    def _numeric_quantities(self):
+        """
+        Vectorized function for numerical evaluation of the quantity
+        complementarity.
+
+        :getter: Return current function for evaluating the complementarity.
+        :type: function
+
+        """
+        if self.__numeric_quantities is None:
+            self.__numeric_quantities = sym.lambdify(self._symbolic_args,
+                                                     self._symbolic_quantities,
+                                                     self._modules)
+        return self.__numeric_quantities
+
+    @property
+    def _numeric_span_of_control(self):
+        """
+        Vectorized function for numerical evaluation of the resource
+        complementarity.
+
+        :getter: Return current function for evaluating the complementarity.
+        :type: function
+
+        """
+        if self.__numeric_span_of_control is None:
+            self.__numeric_span_of_control = sym.lambdify(self._symbolic_args,
+                                                          self._symbolic_span_of_control,
+                                                          self._modules)
+        return self.__numeric_span_of_control
+
+    @property
+    def _numeric_system(self):
+        """
+        Vectorized function for numerical evaluation of model system.
+
+        :getter: Return current function for evaluating the system.
+        :type: function
+
+        """
+        if self.__numeric_system is None:
+            self.__numeric_system = sym.lambdify(self._symbolic_args,
+                                                 self._symbolic_system,
+                                                 self._modules)
+        return self.__numeric_system
+
+    @property
+    def _numeric_type_resource(self):
+        """
+        Vectorized function for numerical evaluation of the resource
+        complementarity.
+
+        :getter: Return current function for evaluating the complementarity.
+        :type: function
+
+        """
+        if self.__numeric_type_resource is None:
+            self.__numeric_type_resource = sym.lambdify(self._symbolic_args,
+                                                        self._symbolic_type_resource,
+                                                        self._modules)
+        return self.__numeric_type_resource
+
+    @property
+    def _numeric_wage(self):
+        """
+        Vectorized function for numerical evaluation of wages.
+
+        :getter: Return current function for evaluating wages.
+        :type: function
+
+        """
+        if self.__numeric_wage is None:
+            self.__numeric_wage = sym.lambdify(self._symbolic_args,
+                                               self._symbolic_wage,
+                                               self._modules)
+        return self.__numeric_wage
+
+    @property
+    def _solution(self):
+        """
+        Solution to the model represented as a NumPy array.
+
+        :getter: Return the array represnting the current solution
+        :setter: Set a new array defining the solution.
+        :type: numpy.ndarray
+
+        """
+        return self.__solution
+
+    @_solution.setter
+    def _solution(self, value):
+        """Set a new value for the solution array."""
+        self.__solution = value
+
+    @property
+    def _symbolic_args(self):
+        """
+        Symbolic arguments used when lambdifying symbolic Jacobian and system.
+
+        :getter: Return the list of symbolic arguments.
+        :type: list
+
+        """
+        return self._symbolic_variables + self._symbolic_params
+
+    @property
+    def _symbolic_equations(self):
+        """
+        Symbolic expressions defining the right-hand side of a system of ODEs.
+
+        :getter: Return the list of symbolic expressions.
+        :type: list
+
+        """
+        return [self.model.matching.mu_prime, self.model.matching.theta_prime]
+
+    @property
+    def _symbolic_input_types(self):
+        """
+        Symbolic expression for complementarity between input types.
+
+        :getter: Return the current expression for the complementarity.
+        :type: sympy.Basic
+
+        """
+        Fxy = self.model.matching.input_types
+        return Fxy.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
+    def _symbolic_jacobian(self):
+        """
+        Symbolic expressions defining the Jacobian of a system of ODEs.
+
+        :getter: Return the symbolic Jacobian.
+        :type: sympy.Basic
+
+        """
+        return self._symbolic_system.jacobian([V[0], V[1]])
+
+    @property
+    def _symbolic_params(self):
+        """
+        Symbolic parameters passed as arguments when lambdifying symbolic
+        Jacobian and system.
+
+        :getter: Return the list of symbolic parameter arguments.
+        :type: list
+
+        """
+        return sym.var(list(self.model.params.keys()))
+
+    @property
+    def _symbolic_profit(self):
+        """
+        Symbolic expression defining profit.
+
+        :getter: Return the symbolic expression for profits.
+        :type: sympy.Basic
+
+        """
+        profit = self.model.matching.profit
+        return profit.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
+    def _symbolic_quantities(self):
+        """
+        Symbolic expression for complementarity between input quantities.
+
+        :getter: Return the current expression for the complementarity.
+        :type: sympy.Basic
+
+        """
+        Flr = self.model.matching.quantities
+        return Flr.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
+    def _symbolic_span_of_control(self):
+        """
+        Symbolic expression for span-of-control complementarity.
+
+        :getter: Return the current expression for the complementarity.
+        :type: sympy.Basic
+
+        """
+        Fyl = self.model.matching.span_of_control
+        return Fyl.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
+    def _symbolic_system(self):
+        """
+        Symbolic matrix defining the right-hand side of a system of ODEs.
+
+        :getter: Return the symbolic matrix.
+        :type: sympy.Matrix
+
+        """
+        system = sym.Matrix(self._symbolic_equations)
+        return system.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
+    def _symbolic_type_resource(self):
+        """
+        Symbolic expression for complementarity between worker type and
+        firm resources.
+
+        :getter: Return the current expression for the complementarity.
+        :type: sympy.Basic
+
+        """
+        Fxr = self.model.matching.type_resource
+        return Fxr.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
+    def _symbolic_variables(self):
+        """
+        Symbolic variables passed as arguments when lambdifying symbolic
+        Jacobian and system.
+
+        :getter: Return the list of symbolic variable arguments.
+        :type: list
+
+        """
+        return [self.model.workers.var, V]
+
+    @property
+    def _symbolic_wage(self):
+        """
+        Symbolic expression defining wages.
+
+        :getter: Return the symbolic expression for wages.
+        :type: sympy.Basic
+
+        """
+        wage = self.model.matching.wage
+        return wage.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
+    def integrator(self):
+        """
+        Integrator for solving a system of ordinary differential equations.
+
+        :getter: Return the current integrator.
+        :type: scipy.integrate.ode
+
+        """
+        if self.__integrator is None:
+            self.__integrator = integrate.ode(f=self.evaluate_rhs,
+                                              jac=self.evaluate_jacobian)
+        return self.__integrator
+
+    @property
+    def model(self):
+        """
+        Instance of the models.Model class to be solved via forward shooting.
+
+        :getter: Return the current models.Model instance.
+        :setter: Set a new models.Model instance.
+        :type: models.Model
+
+        """
+        return self._model
+
+    @model.setter
+    def model(self, model):
+        """Set a new Model attribute."""
+        self._model = self._validate_model(model)
+        self._clear_cache()
+
+    @property
+    def solution(self):
+        """
+        Solution to the model represented as a Pandas DataFrame.
+
+        :getter: Return the DataFrame representing the current solution.
+        :type: pandas.DataFrame
+
+        """
+        col_names = ['x', 'firm productivity', 'firm size', 'wage', 'profit']
+        df = pd.DataFrame(self._solution, columns=col_names)
+        if self.model.assortativity == 'positive':
+            df.sort('x', inplace=True)
         else:
-            init = (np.array([self.theta0, y_upper]), x_lower)
+            pass
+        return df.set_index('x')
 
-        return init
+    def _check_pam(self, step):
+        r"""
+        Check necessary condition required for a positive assortative
+        matching (PAM).
 
-    def _get__integrate(self):
-        pass
+        Parameters
+        ----------
+        step : numpy.ndarray (shape=(5,))
+            Step along a putative solution to the model.
 
-    def _solve_pam(self, theta0, tol=1e-2, N=1e3, deg=1, mesg=False, 
-                   max_iter=1e6, integrator='dopri5', **kwargs):
-        """Uses a forward shooting algorithm to solve for a PAM euilibrium."""
+        Returns
+        -------
+        check : boolean
+            Flag indicating whether positive assortative matching condition is
+            satisfied for the given step.
 
-        # range of worker types 
-        xl = self.model.workers.lower_bound
-        xu = self.model.workers.upper_bound
-            
-        # range of worker types 
-        yl = self.model.firms.lower_bound 
-        yu = self.model.firms.upper_bound
-    
-        # initial condition for the solver 
-        init = np.array([theta0, yu])
+        """
+        # unpack the step
+        x, V = step[0], step[1:3]
 
-        # compute the optimal step size
-        step_size = (xu - xl) / (N - 1)
-            
-        # check that initial wages and profits are strictly positive
-        if self.model.get_wages(xu, init) <= 0.0:
-            raise Exception, ('Invalid initial condition! Most skilled worker' +
-                              ' must earn strictly positive wage!')
+        LHS = self.evaluate_input_types(x, V) * self.evaluate_quantities(x, V)
+        RHS = (self.evaluate_span_of_control(x, V) *
+               self.evaluate_type_resource(x, V))
 
-        if self.model.get_profits(xu, init) <= 0.0:
-            raise Exception, ('Invalid initial condition! Most productive' +
-                              ' firm must earn strictly positive profits!')
+        if np.isclose(LHS - RHS, 0):
+            check = True
+        else:
+            check = LHS > RHS
 
-        # check that PAM holds for initial condition
-        if not self.model.check_pam(xu, init):
-            raise Exception, ('Invalid initial condition! Necessary condition' +
-                              ' for PAM fails!')
-            
-        ########## ODE solver ##########
-    
-        # initialize solver for PAM
-        solver = integrate.ode(self.system)
-        solver.set_integrator(integrator, **kwargs)
-        solver.set_initial_value(init, xu)
-                
-        ##### Forward shooting algorithm #####
-    
-        # initialize putative equilibrium path
-        init_wages   = self.model.get_wages(xu, init)
-        init_profits = self.model.get_profits(xu, init)
-        path         = np.hstack((xu, init, init_wages, init_profits)) 
+        return check
 
-        # initialize a counter
-        num_iter = 0
+    def _clear_cache(self):
+        """Clear cached functions used for numerical evaluation."""
+        self.__numeric_input_types = None
+        self.__numeric_jacobian = None
+        self.__numeric_profit = None
+        self.__numeric_quantities = None
+        self.__numeric_span_of_control = None
+        self.__numeric_system = None
+        self.__numeric_type_resource = None
+        self.__numeric_wage = None
+        self.__integrator = None
 
-        # initial feasible range for theta0 
-        theta_h = 2.0 * theta0
-        theta_l = 0
-        
-        while num_iter < max_iter:
-            num_iter += 1
-            if mesg == True and num_iter % 1000 == 0:
-                print 'Completed', num_iter, 'iterations.' 
-            
-            # Walk the 2D system forward one step
-            solver.integrate(solver.t - step_size)
-        
-            # compute profits and wages along putative equilibrium
-            tmp_wages   = self.model.get_wages(solver.t, solver.y)
-            tmp_profits = self.model.get_profits(solver.t, solver.y)
-            tmp_step    = np.hstack((solver.t, solver.y, tmp_wages, tmp_profits))
-            path        = np.vstack((path, tmp_step))
+    def _converged_firms(self, tol):
+        """Check whether solution component for firms has converged."""
+        if abs(self.integrator.y[0] - self.model.firms.lower) <= tol:
+            converged = True
+        else:
+            converged = False
+        return converged
 
-            ##### At each step, need to... #####
-
-            # check that necessary condition for PAM holds
-            if not self.model.check_pam(solver.t, solver.y):
-                print 'Necessary condition for PAM failed!'
-                print 'Most recent step:', path[-1,:]
-                break
-
-            # check that firm size is non-negative!
-            if solver.y[0] <= tol:
-
-                # theta0 too low  
-                theta_l = init[0]
-                init[0] = (theta_h + theta_l) / 2
-                if mesg == True:
-                    print 'Negative firm size! Guess for theta0 was too low!'
-                    print 'Most recent step:', path[-1,:]
-                    print 'New initial condition is', init[0]
-                    print ''
-                solver.set_initial_value(init, xu)
-                
-                # reset the putative equilibrium path
-                init_wages = self.model.get_wages(xu, init)
-                init_profits = self.model.get_profits(xu, init)
-                path = np.hstack((xu, init, init_wages, init_profits))
-
-            # check workers...
-            elif solver.t <= xl:
-                
-                # ...check for equilibrium with all workers/firms matched! 
-                if (np.abs(solver.t - xl) < tol and 
-                    np.abs(solver.y[1] - yl) < tol):
-                    if mesg == True:
-                        print 'Sucess! All workers matched with all firms.'
-                        print 'Most recent step:', path[-1,:]
-                    break
-
-                # ...check for equilibrium with excess supply of firms!
-                elif np.abs(solver.t - xl) < tol and np.abs(tmp_profits) < tol:
-                    if mesg == True:
-                        print 'Found equilibrium with excess supply of firms!'
-                        print 'Most recent step:', path[-1,:]
-                    break
-
-                # ...check if exhausted all firms (i.e., theta0 too low!)
-                elif (solver.y[1] - yl) < -tol:
-                    theta_l = init[0]
-                    init[0] = (theta_h + theta_l) / 2
-                    if mesg == True:
-                        print ('You have run out of firms! Guess for theta0' + 
-                               ' was too low!')
-                        print 'Most recent step:', path[-1,:]
-                        print 'New initial condition is', init[0]
-                        print ''
-                    solver.set_initial_value(init, xu)
-                
-                    # reset the putative equilibrium path
-                    init_wages = self.model.get_wages(xu, init)
-                    init_profits = self.model.get_profits(xu, init)
-                    path = np.hstack((xu, init, init_wages, init_profits))
-                
-                # ...else, theta0 too high!
-                else:
-                    theta_h = init[0]
-                    init[0] = (theta_h + theta_l) / 2
-                    if mesg == True:
-                        print('You have run out of workers, but there are ' + 
-                              'still firms around and profits are non-zero.' +
-                              ' Guess for theta0 was too high!') 
-                        print 'Most recent step:', path[-1,:]
-                        print 'New initial condition is', init[0]
-                        print ''
-                    solver.set_initial_value(init, xu)
-                
-                    # reset the putative equilibrium path
-                    init_wages = self.model.get_wages(xu, init)
-                    init_profits = self.model.get_profits(xu, init)
-                    path = np.hstack((xu, init, init_wages, init_profits))
-                        
-            # check firms...
-            elif solver.y[1] <= yl:
-                
-                # ...check for equilibrium with all workers/firms matched!
-                if (np.abs(solver.t - xl) < tol and 
-                    np.abs(solver.y[1] - yl) < tol):
-                    if mesg == True:
-                        print 'Sucess! All workers matched with all firms.'
-                        print 'Most recent step:', path[-1,:]
-                    break
-
-                # ...check for equilibrium with excess supply of workers!
-                elif (np.abs(tmp_wages) < tol and 
-                        np.abs(solver.y[1] - yl) < tol):
-                    if mesg == True:
-                        print 'Found equilibrium with excess supply of workers!'
-                        print 'Most recent step:', path[-1,:]
-                    break
-
-                # ...check if exhausted all workers (i.e., theta0 too high!)
-                elif (solver.t - xl) < -tol:
-                    theta_h = init[0]
-                    init[0] = (theta_h + theta_l) / 2
-                    if mesg == True:
-                        print ('You have run out of workers! Guess for' +
-                               ' theta0 was too high!') 
-                        print 'Most recent step:', path[-1,:]
-                        print 'New initial condition is', init[0]
-                        print ''
-                    solver.set_initial_value(init, xu)
-                
-                    # reset the putative equilibrium path
-                    init_wages = self.model.get_wages(xu, init)
-                    init_profits = self.model.get_profits(xu, init)
-                    path = np.hstack((xu, init, init_wages, init_profits))
-                
-                # ...else, theta0 too low!
-                else:
-                    theta_l = init[0]
-                    init[0] = (theta_h + theta_l) / 2
-                    if mesg == True:
-                        print('You have run out of firms, but there are ' + 
-                              'still workers around and wages are non-zero.' +
-                              ' Guess for theta0 was too low!')
-                        print 'Most recent step:', path[-1,:]
-                        print 'New initial condition is', init[0]
-                        print ''
-                    solver.set_initial_value(init, xu)
-                
-                    # reset the putative equilibrium path
-                    init_wages = self.model.get_wages(xu, init)
-                    init_profits = self.model.get_profits(xu, init)
-                    path = np.hstack((xu, init, init_wages, init_profits))
-            
-            # check that wages are non-negative...
-            elif tmp_wages <= 0:  
-
-                # check if exhausted all firms and wages are zeroish...
-                if np.abs(tmp_wages) < tol and np.abs(solver.y[1] - yl) < tol:
-                    if mesg == True:
-                        print('Found equilibrium with excess supply of workers' + 
-                              '...but, you should not be reading this!')
-                        print 'Most recent step:', path[-1,:]
-                    break
-
-                # theta0 too high!  
-                else:
-                    theta_h = init[0]
-                    init[0] = (theta_h + theta_l) / 2
-                    if mesg == True:
-                        print('There are still workers and firms around, ' + 
-                              'but wages are zero! Guess for theta0 was too' +
-                              'high!')
-                        print 'Most recent step:', path[-1,:]
-                        print 'New initial condition is', init[0]
-                        print ''
-                    solver.set_initial_value(init, xu)
-                
-                    # reset the putative equilibrium path
-                    init_wages = self.model.get_wages(xu, init)
-                    init_profits = self.model.get_profits(xu, init)
-                    path = np.hstack((xu, init, init_wages, init_profits))
-
-            # check that profits are non-negative...
-            elif tmp_profits <= 0:
-
-                # check if exhausted all workers and profits are zeroish
-                if np.abs(tmp_profits) < tol and np.abs(solver.t - xl) < tol:
-                    if mesg == True:
-                        print('Found equilibrium with excess supply of firms' + 
-                              '...but, you should not be reading this!')
-                    break
-
-                # theta0 too low!
-                else:
-                    theta_l = init[0]
-                    init[0] = (theta_h + theta_l) / 2
-                    if mesg == True:
-                        print('There are still workers and firms around, ' + 
-                              'but profits are zero!')
-                        print 'Most recent step:', path[-1,:]
-                        print 'New initial condition is', init[0]
-                        print ''
-                    solver.set_initial_value(init, xu)
-                
-                    # reset the putative equilibrium path
-                    init_wages = self.model.get_wages(xu, init)
-                    init_profits = self.model.get_profits(xu, init)
-                    path = np.hstack((xu, init, init_wages, init_profits))
-                    
-            # if all of the above are satisfied, then continue!
+    def _converged_workers(self, tol):
+        """Check whether solution component for workers has converged."""
+        if self.model.assortativity == 'positive':
+            if abs(self.integrator.t - self.model.workers.lower) <= tol:
+                converged = True
             else:
-                continue     
-            
-            # check whether max_iter condition has been reached
-            if num_iter == int(max_iter):
-                print "Reached maximum iterations w/o finding a solution."
-                self.success = False
-                break
-                  
-        # modify the solver's path attribute (reverse order!)
-        self.path = path[::-1]  
-        
-        if self.success == True:
-            
-            # approximate equilibrium firm size and matching functions
-            theta = self.bspline(self.path[:,0], self.path[:,1], deg)
-            mu    = self.bspline(self.path[:,0], self.path[:,2], deg)
-            
-            # approximate equilibrium wages and profits
-            w  = lambda x: self.model.get_wages(x, [theta(x), mu(x)])
-            pi = lambda x: self.model.get_profits(x, [theta(x), mu(x)])
-            
-            # modify the equilibrium attribute
-            self.model.equilibrium['theta']   = theta
-            self.model.equilibrium['mu']      = mu
-            self.model.equilibrium['wages']   = w
-            self.model.equilibrium['profits'] = pi 
-
-
-    def _solve_nam(self, theta0, tol=1e-2, N=1e3, deg=1, mesg=False, 
-                   max_iter=1e6, integrator='dopri5', **kwargs):
-        raise NotImplementedError
-
-    def solve(self, theta0, tol=1e-2, N=1e3, deg=1, mesg=False, 
-              max_iter=1e6, integrator='dopri5', **kwargs):
-        """
-        Solve for the equilibrium of the Eeckhout and Kircher (2013) model 
-        using a Forward Shooting algorithm. For details on the forward shooting 
-        algorithm see Judd (1992) p. 357.
-
-        Arguments:
-
-        theta0:    Initial guess for the size of the most productive firm.
-        
-        tol:        How close to the shooting target is "close enough."
-        
-        N:          Number of points of the solution path to compute.
-        
-        deg:        Degree of B-spline approximation to use. Must satisfy
-                    1 <= deg <= 5.
-                    
-        matching:   One of either 'pam' or 'nam' depending on whether or not you
-                    want an equilibrium with positive or negative assortative 
-                    matching.
-        
-        mesg:       Do you want to print messages indicating progress
-                    towards convergence? Default is False.
-        
-        integrator: Solution method for ODE solver.  Must be one of 'lsoda', 
-                    'vode', zvode', 'dopri5', 'dop853'.  See scipy.integrate.ode 
-                    for details (including references for algorithms).
-        
-        **kwargs:   Additional arguments to pass to the ODE solver.  
-                    See scipy.integrate.ode for details.
-        
-        """
-        # which or either positive or negative assortative matching?
-        if self.model.matching == 'pam':
-            self._shoot_pam(theta0, tol, N, deg, mesg, max_iter, integrator, 
-                            **kwargs)
-
+                converged = False
         else:
-            self._shoot_nam(theta0, tol, N, deg, mesg, max_iter, integrator, 
-                            **kwargs)
-        
-    
+            if abs(self.integrator.t - self.model.workers.upper) <= tol:
+                converged = True
+            else:
+                converged = False
 
+        return converged
 
-if __name__ == '__main__':
-    import numpy as np
-    import sympy as sp
+    def _exhausted_firms(self, tol):
+        """Check whether firms have been exhausted."""
+        if self.integrator.y[0] - self.model.firms.lower < -tol:
+            exhausted = True
+        else:
+            exhausted = False
+        return exhausted
 
-    from inputs import Input
-    from sandbox import Model
+    def _guess_firm_size_upper_too_low(self, bound, tol):
+        """Check whether guess for upper bound for firm size is too low."""
+        return abs(self.integrator.y[1] - bound) <= tol
 
-    params = {'nu':0.89, 'kappa':1.0, 'gamma':0.54, 'rho':0.24, 'A':1.0}
+    def _reset_solution(self, firm_size):
+        """
+        Reset the initial condition for the integrator and re-initialze the
+        solution array.
 
-    sp.var('A, kappa, nu, x, rho, y, l, gamma, r')
-    F = r * A * kappa * (nu * x**rho + (1 - nu) * (y * (l / r))**rho)**(gamma / rho)
+        Parameters
+        ----------
+        firm_size : float
 
-    # suppose worker skill is log normal
-    sp.var('x, mu, sigma')
-    skill_cdf = 0.5 + 0.5 * sp.erf((sp.log(x) - mu) / sp.sqrt(2 * sigma**2))
-    worker_params = {'mu':0.0, 'sigma':1}
-    x_lower, x_upper, x_measure = 1e-3, 5e1, 0.025
-    
-    workers = Input(distribution=skill_cdf,
-                    lower_bound=x_lower,
-                    params=worker_params,
-                    upper_bound=x_upper,
-                   )
+        """
+        x_lower, x_upper = self.model.workers.lower, self.model.workers.upper
+        y_upper = self.model.firms.upper
+        initial_V = np.array([y_upper, firm_size])
 
-    # suppose firm productivity is log normal
-    sp.var('x, mu, sigma')
-    productivity_cdf = 0.5 + 0.5 * sp.erf((sp.log(x) - mu) / sp.sqrt(2 * sigma**2))
-    firm_params = {'mu':0.0, 'sigma':1}
-    y_lower, y_upper, y_measure = 1e-3, 5e1, 0.025
-    
-    firms = Input(distribution=productivity_cdf,
-                  lower_bound=x_lower,
-                  params=firm_params,
-                  upper_bound=x_upper,
-                  )
+        if self.model.assortativity == 'positive':
+            self.integrator.set_initial_value(initial_V, x_upper)
+            wage = self.evaluate_wage(x_upper, initial_V)
+            profit = self.evaluate_profit(x_upper, initial_V)
+            self._solution = np.hstack((x_upper, initial_V, wage, profit))
+        else:
+            self.integrator.set_initial_value(initial_V, x_lower)
+            wage = self.evaluate_wage(x_lower, initial_V)
+            profit = self.evaluate_profit(x_lower, initial_V)
+            self._solution = np.hstack((x_lower, initial_V, wage, profit))
 
-    # create an instance of the Model class
-    model = Model(firms=firms,
-                  matching='PAM',
-                  output=F,
-                  params=params,
-                  workers=workers
-                  )
+    def _update_initial_guess(self, lower, upper):
+        """
+        Use bisection method to arrive at new initial guess for firm size.
 
-    shooting = ShootingSolver(integrator='dopri5',
-                              model=model)
+        Parameters
+        ----------
+        lower : float
+            Lower bound on the true initial condition for firm size.
+        upper : float
+            Upper bound on the true initial condition for firm size.
+
+        Returns
+        -------
+        guess : float
+            New initial guess for firm size.
+
+        """
+        err_mesg = 'Upper and lower bounds are identical: check solver tols!'
+        assert (upper - lower) > np.finfo('float').eps, err_mesg
+        guess = 0.5 * (lower + upper)
+        return guess
+
+    def _update_solution(self, step_size):
+        """
+        Update the solution array.
+
+        Parameters
+        ----------
+        step_size : float
+            Step size for determining next point in the solution.
+
+        """
+        if self.model.assortativity == 'positive':
+            self.integrator.integrate(self.integrator.t - step_size)
+            x, V = self.integrator.t, self.integrator.y
+        else:
+            self.integrator.integrate(self.integrator.t + step_size)
+            x, V = self.integrator.t, self.integrator.y
+
+        assert V[1] > 0.0, "Firm size should be non-negative!"
+
+        # update the putative equilibrium solution
+        wage = self.evaluate_wage(x, V)
+        profit = self.evaluate_profit(x, V)
+        step = np.hstack((x, V, wage, profit))
+        self._solution = np.vstack((self._solution, step))
+
+    @staticmethod
+    def _validate_model(model):
+        """Validate the model attribute."""
+        if not isinstance(model, models.Model):
+            mesg = ("Attribute 'model' must have type models.Model, not {}.")
+            raise AttributeError(mesg.format(model.__class__))
+        else:
+            return model
+
+    def _validate_solution(self, solution):
+        """Validate a putative solution to the model."""
+        check = np.apply_along_axis(self._check_pam, axis=1, arr=solution)
+        if self.model.assortativity == 'positive' and (not check.all()):
+            mesg = ("Approximated solution failed to satisfy required " +
+                    "assortativity condition.")
+            raise ValueError(mesg)
+        elif self.model.assortativity == 'negative' and (check.all()):
+            mesg = ("Approximated solution failed to satisfy required " +
+                    "assortativity condition.")
+            raise ValueError(mesg)
+        else:
+            pass
+
+    def evaluate_input_types(self, x, V):
+        r"""
+        Numerically evaluate complementarity between input types.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        input_types : float
+            Complementarity between input types.
+
+        """
+        input_types = self._numeric_input_types(x, V, *self.model.params.values())
+        return input_types
+
+    def evaluate_jacobian(self, x, V):
+        r"""
+        Numerically evaluate model Jacobian.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        jac : numpy.array (shape=(2,2))
+            Jacobian matrix of partial derivatives.
+
+        """
+        jac = self._numeric_jacobian(x, V, *self.model.params.values())
+        return jac
+
+    def evaluate_profit(self, x, V):
+        r"""
+        Numerically evaluate profit for a firm with productivity V[0] and size
+        V[1] when matched with a worker with skill x.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        profit : float
+            Firm's profit.
+
+        """
+        profit = self._numeric_profit(x, V, *self.model.params.values())
+        assert profit > 0.0, "Profit should be non-negative!"
+        return profit
+
+    def evaluate_rhs(self, x, V):
+        r"""
+        Numerically evaluate right-hand side of the system of ODEs.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        rhs : numpy.array (shape=(2,))
+            Right hand side of the system of ODEs.
+
+        """
+        rhs = self._numeric_system(x, V, *self.model.params.values()).ravel()
+        return rhs
+
+    def evaluate_quantities(self, x, V):
+        r"""
+        Numerically evaluate quantities complementarity.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        quantities : float
+            Complementarity between quantities
+
+        """
+        quantities = self._numeric_quantities(x, V, *self.model.params.values())
+        return quantities
+
+    def evaluate_type_resource(self, x, V):
+        r"""
+        Numerically evaluate complementarity between worker skill and
+        firm resources.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        resource : float
+            Complementarity between worker skill and firm resources.
+
+        """
+        resource = self._numeric_type_resource(x, V, *self.model.params.values())
+        return resource
+
+    def evaluate_span_of_control(self, x, V):
+        r"""
+        Numerically evaluate span-of-control complementarity.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        span_of_control : float
+            Span-of-control complementarity.
+
+        """
+        span_of_control = self._numeric_span_of_control(x, V, *self.model.params.values())
+        return span_of_control
+
+    def evaluate_wage(self, x, V):
+        r"""
+        Numerically evaluate wage for a worker with skill level x when matched
+        to a firm with productivity V[0] with size V[1].
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        wage : float
+            Worker's wage.
+
+        """
+        wage = self._numeric_wage(x, V, *self.model.params.values())
+        assert wage > 0.0, "Wage should be non-negative!"
+        return wage
+
+    def solve(self, guess_firm_size_upper, tol=1e-6, number_knots=100,
+              integrator='dopri5', message=False, **kwargs):
+        """
+        Solve for assortative matching equilibrium.
+
+        Parameters
+        ----------
+        guess_firm_size_upper : float
+            Upper bound on the range of possible values for the initial
+            condition for firm size.
+        tol : float (default=1e-6)
+            Convergence tolerance.
+        number_knots : int (default=100)
+            Number of knots to use in approximating the solution. The number of
+            knots determines the step size used by the ODE solver.
+        integrator: string (default='dopri5')
+            Integrator to use in appoximating the solution. Valid options are:
+            'dopri5', 'lsoda', 'vode', 'dop853'. See `scipy.optimize.ode` for
+            complete description of each solver.
+        message : boolean (default=False)
+            Flag indicating whether or not to print progress messages.
+        **kwargs : dict
+            Dictionary of optional, solver specific, keyword arguments. setter
+            `scipy.optimize.ode` for details.
+
+        Notes
+        -----
+        Rather than returning a result, this method modifies the `_solution`
+        attribute of the `Solver` class. To final solution is stored as a
+        `pandas.DataFrame` in the `solution` attribute.
+
+        """
+
+        # relevant bounds
+        x_lower = self.model.workers.lower
+        x_upper = self.model.workers.upper
+
+        # initialize integrator
+        self.integrator.set_integrator(integrator, **kwargs)
+
+        # initialize the solution
+        firm_size_lower = 0.0
+        firm_size_upper = guess_firm_size_upper
+        guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
+        self._reset_solution(guess_firm_size)
+
+        # step size insures that never step beyond x_lower
+        step_size = (x_upper - x_lower) / (number_knots - 1)
+        assert step_size > 0
+
+        while self.integrator.successful():
+
+            if self._guess_firm_size_upper_too_low(guess_firm_size_upper, tol):
+                if message:
+                    mesg = ("Failure! Need to increase initial guess for " +
+                            "upper bound on firm size!")
+                    print(mesg)
+                break
+
+            self._update_solution(step_size)
+
+            if self._converged_workers(tol) and self._converged_firms(tol):
+                self._validate_solution(self._solution)
+                mesg = "Success! All workers and firms are matched"
+                print(mesg)
+                break
+
+            elif (not self._converged_workers(tol)) and self._exhausted_firms(tol):
+                if message:
+                    mesg = ("Exhausted firms: initial guess of {} for firm " +
+                            "size is too low.")
+                    print(mesg.format(guess_firm_size))
+                firm_size_lower = guess_firm_size
+
+            elif self._converged_workers(tol) and self._exhausted_firms(tol):
+                if message:
+                    mesg = ("Exhausted firms: Initial guess of {} for firm " +
+                            "size was too low!")
+                    print(mesg.format(guess_firm_size))
+                firm_size_lower = guess_firm_size
+
+            elif self._converged_workers(tol) and (not self._exhausted_firms(tol)):
+                if message:
+                    mesg = ("Exhausted workers: initial guess of {} for " +
+                            "firm size is too high!")
+                    print(mesg.format(guess_firm_size))
+                firm_size_upper = guess_firm_size
+
+            else:
+                continue
+
+            guess_firm_size = self._update_initial_guess(firm_size_lower,
+                                                         firm_size_upper)
+            self._reset_solution(guess_firm_size)
