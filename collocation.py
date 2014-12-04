@@ -1,12 +1,16 @@
+from __future__ import division
 
-class OrthogonalCollocation(object):
-    """Base class representing a simple orthogonal collocation solver."""
-    
+import solvers
+
+
+class OrthogonalCollocation(solvers.Solver):
+    """Class representing an orthogonal collocation solver."""
+
     def __init__(self, model, kind='Chebyshev'):
         """
-        Initializes an instance of the OrthogonalCollocation class with the 
+        Initializes an instance of the OrthogonalCollocation class with the
         following attributes:
-            
+
             model: (object) An instance of the Model class.
             
             kind:  (str) The class of orthogonal polynomials to use as basis 
