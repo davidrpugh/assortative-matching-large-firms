@@ -2,19 +2,20 @@
 Classes for modeling heterogenous factors of production.
 
 @author : David R. Pugh
-@date : 2014-09-30
+@date : 2014-11-11
 
 """
 from __future__ import division
 
 import numpy as np
+from scipy import special
 import sympy as sym
 
 
 class Input(object):
     """Class representing a heterogenous production input."""
 
-    modules = [{'ImmutableMatrix': np.array}, "numpy", "math"]
+    _modules = [{'ImmutableMatrix': np.array, 'erf': special.erf}, 'numpy']
 
     def __init__(self, var, cdf, bounds, params):
         """
@@ -55,7 +56,7 @@ class Input(object):
         """
         if self.__numeric_cdf is None:
             args = [self.var] + sym.var(list(self.params.keys()))
-            self.__numeric_cdf = sym.lambdify(args, self.cdf, self.modules)
+            self.__numeric_cdf = sym.lambdify(args, self.cdf, self._modules)
         return self.__numeric_cdf
 
     @property
@@ -69,7 +70,7 @@ class Input(object):
         """
         if self.__numeric_pdf is None:
             args = [self.var] + sym.var(list(self.params.keys()))
-            self.__numeric_pdf = sym.lambdify(args, self.pdf, self.modules)
+            self.__numeric_pdf = sym.lambdify(args, self.pdf, self._modules)
         return self.__numeric_pdf
 
     @property
@@ -237,7 +238,7 @@ class Input(object):
             Evaluated CDF.
 
         """
-        out = self._numeric_cdf(value, **self.params)
+        out = self._numeric_cdf(value, *self.params.values())
         return out
 
     def evaluate_pdf(self, value, norm=True):
@@ -259,7 +260,8 @@ class Input(object):
 
         """
         if norm:
-            out = self._numeric_pdf(value, **self.params) / self.norm_constant
+            out = (self._numeric_pdf(value, *self.params.values()) /
+                   self.norm_constant)
         else:
-            out = self._numeric_pdf(value, **self.params)
+            out = self._numeric_pdf(value, *self.params.values())
         return out
