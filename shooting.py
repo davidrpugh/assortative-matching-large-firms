@@ -1,15 +1,16 @@
 import numpy as np
 import pandas as pd
-from scipy import integrate, special
+from scipy import integrate
 import sympy as sym
 
 import models
+import solvers
 
 # represent endogenous variables mu and theta as a deferred vector
 V = sym.DeferredVector('V')
 
 
-class ShootingSolver(object):
+class ShootingSolver(solvers.Solver):
     """Solves a model using forward shooting."""
 
     __numeric_input_types = None
@@ -29,8 +30,6 @@ class ShootingSolver(object):
     __numeric_wage = None
 
     __integrator = None
-
-    _modules = [{'ImmutableMatrix': np.array, 'erf': special.erf}, 'numpy']
 
     def __init__(self, model):
         """
