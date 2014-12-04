@@ -371,28 +371,35 @@ class ShootingSolver(object):
             pass
         return df.set_index('x')
 
-    def _check_positive_assortative_matching(self, x, V):
+    def _check_pam(self, step):
         r"""
         Check necessary condition required for a positive assortative
-        matching.
+        matching (PAM).
 
         Parameters
         ----------
-        x : float
-            Value for worker skill (i.e., the independent variable).
-        V : numpy.array (shape=(2,))
-            Array of values for the dependent variables with ordering:
-            :math:`[\mu, \theta]`.
+        step : numpy.ndarray (shape=(5,))
+            Step along a putative solution to the model.
 
         Returns
         -------
         check : boolean
-            Flag indicating whether positive assortative matching is satisfied.
+            Flag indicating whether positive assortative matching condition is
+            satisfied for the given step.
 
         """
+        # unpack the step
+        x, V = step[0], step[1:3]
+
         LHS = self.evaluate_input_types(x, V) * self.evaluate_quantities(x, V)
-        RHS = self.evaluate_span_of_control(x, V) * self.evaluate_type_resource(x, V)
-        check = (LHS >= RHS)
+        RHS = (self.evaluate_span_of_control(x, V) *
+               self.evaluate_type_resource(x, V))
+
+        if np.isclose(LHS - RHS, 0):
+            check = True
+        else:
+            check = LHS > RHS
+
         return check
 
     def _clear_cache(self):
@@ -489,7 +496,7 @@ class ShootingSolver(object):
         guess = 0.5 * (lower + upper)
         return guess
 
-    def _update_solution(self, step_size, check):
+    def _update_solution(self, step_size):
         """
         Update the solution array.
 
@@ -502,15 +509,10 @@ class ShootingSolver(object):
         if self.model.assortativity == 'positive':
             self.integrator.integrate(self.integrator.t - step_size)
             x, V = self.integrator.t, self.integrator.y
-            if check:
-                mesg = "Positive assortative matching (PAM) condition failed!"
-                assert self._check_positive_assortative_matching(x, V), mesg
         else:
             self.integrator.integrate(self.integrator.t + step_size)
             x, V = self.integrator.t, self.integrator.y
-            if check:
-                mesg = "Negative assortative matching (NAM) condition failed!"
-                assert not self._check_positive_assortative_matching(x, V), mesg
+
         assert V[1] > 0.0, "Firm size should be non-negative!"
 
         # update the putative equilibrium solution
@@ -527,6 +529,20 @@ class ShootingSolver(object):
             raise AttributeError(mesg.format(model.__class__))
         else:
             return model
+
+    def _validate_solution(self, solution):
+        """Validate a putative solution to the model."""
+        check = np.apply_along_axis(self._check_pam, axis=1, arr=solution)
+        if self.model.assortativity == 'positive' and (not check.all()):
+            mesg = ("Approximated solution failed to satisfy required " +
+                    "assortativity condition.")
+            raise ValueError(mesg)
+        elif self.model.assortativity == 'negative' and (check.all()):
+            mesg = ("Approximated solution failed to satisfy required " +
+                    "assortativity condition.")
+            raise ValueError(mesg)
+        else:
+            pass
 
     def evaluate_input_types(self, x, V):
         r"""
@@ -702,7 +718,7 @@ class ShootingSolver(object):
         return wage
 
     def solve(self, guess_firm_size_upper, tol=1e-6, number_knots=100,
-              integrator='dopri5', message=False, check=True, **kwargs):
+              integrator='dopri5', message=False, **kwargs):
         """
         Solve for assortative matching equilibrium.
 
@@ -760,9 +776,10 @@ class ShootingSolver(object):
                     print(mesg)
                 break
 
-            self._update_solution(step_size, check)
+            self._update_solution(step_size)
 
             if self._converged_workers(tol) and self._converged_firms(tol):
+                self._validate_solution(self._solution)
                 mesg = "Success! All workers and firms are matched"
                 print(mesg)
                 break
