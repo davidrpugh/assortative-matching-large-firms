@@ -702,8 +702,37 @@ class ShootingSolver(object):
         return wage
 
     def solve(self, guess_firm_size_upper, tol=1e-6, number_knots=100,
-              integrator='dopri5', check=True, **kwargs):
-        """Solve for assortative matching equilibrium."""
+              integrator='dopri5', message=False, check=True, **kwargs):
+        """
+        Solve for assortative matching equilibrium.
+
+        Parameters
+        ----------
+        guess_firm_size_upper : float
+            Upper bound on the range of possible values for the initial
+            condition for firm size.
+        tol : float (default=1e-6)
+            Convergence tolerance.
+        number_knots : int (default=100)
+            Number of knots to use in approximating the solution. The number of
+            knots determines the step size used by the ODE solver.
+        integrator: string (default='dopri5')
+            Integrator to use in appoximating the solution. Valid options are:
+            'dopri5', 'lsoda', 'vode', 'dop853'. See `scipy.optimize.ode` for
+            complete description of each solver.
+        message : boolean (default=False)
+            Flag indicating whether or not to print progress messages.
+        **kwargs : dict
+            Dictionary of optional, solver specific, keyword arguments. setter
+            `scipy.optimize.ode` for details.
+
+        Notes
+        -----
+        Rather than returning a result, this method modifies the `_solution`
+        attribute of the `Solver` class. To final solution is stored as a
+        `pandas.DataFrame` in the `solution` attribute.
+
+        """
 
         # relevant bounds
         x_lower = self.model.workers.lower
@@ -725,31 +754,38 @@ class ShootingSolver(object):
         while self.integrator.successful():
 
             if self._guess_firm_size_upper_too_low(guess_firm_size_upper, tol):
-                mesg = ("Failure! Need to increase initial guess for upper " +
-                        "bound on firm size!")
-                print(mesg)
+                if message:
+                    mesg = ("Failure! Need to increase initial guess for " +
+                            "upper bound on firm size!")
+                    print(mesg)
                 break
 
             self._update_solution(step_size, check)
 
             if self._converged_workers(tol) and self._converged_firms(tol):
-                mesg = ("Success! All workers and firms are matched")
+                mesg = "Success! All workers and firms are matched"
                 print(mesg)
                 break
 
             elif (not self._converged_workers(tol)) and self._exhausted_firms(tol):
-                mesg = "Exhausted firms: initial guess of {} for firm size is too low."
-                print(mesg.format(guess_firm_size))
+                if message:
+                    mesg = ("Exhausted firms: initial guess of {} for firm " +
+                            "size is too low.")
+                    print(mesg.format(guess_firm_size))
                 firm_size_lower = guess_firm_size
 
             elif self._converged_workers(tol) and self._exhausted_firms(tol):
-                mesg = "Exhausted firms: Initial guess of {} for firm size was too low!"
-                print(mesg.format(guess_firm_size))
+                if message:
+                    mesg = ("Exhausted firms: Initial guess of {} for firm " +
+                            "size was too low!")
+                    print(mesg.format(guess_firm_size))
                 firm_size_lower = guess_firm_size
 
             elif self._converged_workers(tol) and (not self._exhausted_firms(tol)):
-                mesg = "Exhausted workers: initial guess of {} for firm size is too high!"
-                print(mesg.format(guess_firm_size))
+                if message:
+                    mesg = ("Exhausted workers: initial guess of {} for " +
+                            "firm size is too high!")
+                    print(mesg.format(guess_firm_size))
                 firm_size_upper = guess_firm_size
 
             else:
