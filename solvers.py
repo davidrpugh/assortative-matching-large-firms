@@ -223,38 +223,6 @@ class Solver(object):
         wage = self.model.matching.wage
         return wage.subs({'mu': V[0], 'theta': V[1]})
 
-    def _clear_cache(self):
-        """Clear cached functions used for numerical evaluation."""
-        self.__numeric_input_types = None
-        self.__numeric_profit = None
-        self.__numeric_quantities = None
-        self.__numeric_span_of_control = None
-        self.__numeric_type_resource = None
-        self.__numeric_wage = None
-
-    @staticmethod
-    def _validate_model(model):
-        """Validate the model attribute."""
-        if not isinstance(model, models.Model):
-            mesg = ("Attribute 'model' must have type models.Model, not {}.")
-            raise AttributeError(mesg.format(model.__class__))
-        else:
-            return model
-
-    def _validate_solution(self, solution):
-        """Validate a putative solution to the model."""
-        check = np.apply_along_axis(self._check_pam, axis=1, arr=solution)
-        if self.model.assortativity == 'positive' and (not check.all()):
-            mesg = ("Approximated solution failed to satisfy required " +
-                    "assortativity condition.")
-            raise ValueError(mesg)
-        elif self.model.assortativity == 'negative' and (check.all()):
-            mesg = ("Approximated solution failed to satisfy required " +
-                    "assortativity condition.")
-            raise ValueError(mesg)
-        else:
-            pass
-
     @property
     def model(self):
         """
@@ -321,6 +289,37 @@ class Solver(object):
 
         return check
 
+    def _clear_cache(self):
+        """Clear cached functions used for numerical evaluation."""
+        self.__numeric_input_types = None
+        self.__numeric_profit = None
+        self.__numeric_quantities = None
+        self.__numeric_span_of_control = None
+        self.__numeric_type_resource = None
+        self.__numeric_wage = None
+
+    @staticmethod
+    def _validate_model(model):
+        """Validate the model attribute."""
+        if not isinstance(model, models.Model):
+            mesg = ("Attribute 'model' must have type models.Model, not {}.")
+            raise AttributeError(mesg.format(model.__class__))
+        else:
+            return model
+
+    def _validate_solution(self, solution):
+        """Validate a putative solution to the model."""
+        check = np.apply_along_axis(self._check_pam, axis=1, arr=solution)
+        if self.model.assortativity == 'positive' and (not check.all()):
+            mesg = ("Approximated solution failed to satisfy required " +
+                    "assortativity condition.")
+            raise ValueError(mesg)
+        elif self.model.assortativity == 'negative' and (check.all()):
+            mesg = ("Approximated solution failed to satisfy required " +
+                    "assortativity condition.")
+            raise ValueError(mesg)
+        else:
+            pass
 
     def evaluate_input_types(self, x, V):
         r"""
@@ -386,6 +385,12 @@ class Solver(object):
         """
         quantities = self._numeric_quantities(x, V, *self.model.params.values())
         return quantities
+
+    def evaluate_rhs_mu(self, x, V):
+        raise NotImplementedError
+
+    def evaluate_rhs_theta(self, x, V):
+        raise NotImplementedError
 
     def evaluate_type_resource(self, x, V):
         r"""
