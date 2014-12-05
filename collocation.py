@@ -1,4 +1,13 @@
+"""
+Module implementing an orthogonal collocation solver.
+
+@author : David R. Pugh
+@date : 2014-12-05
+
+"""
 from __future__ import division
+import numpy as np
+from scipy import optimize
 
 import solvers
 
@@ -6,97 +15,122 @@ import solvers
 class OrthogonalCollocation(solvers.Solver):
     """Class representing an orthogonal collocation solver."""
 
-    def __init__(self, model, kind='Chebyshev'):
-        """
-        Initializes an instance of the OrthogonalCollocation class with the
-        following attributes:
+    __coefs = None
 
-            model: (object) An instance of the Model class.
-            
-            kind:  (str) The class of orthogonal polynomials to use as basis 
-                   functions. Default is Chebyshev polynomials.
-            
+    __nodes = None
+
+    def __init__(self, model):
+        """Create an instance of the OrthogonalCollocation class."""
+        super(OrthogonalCollocation, self).__init__()
+        self.kind = "Chebyshev"
+
+    @property
+    def _coefs_mu(self):
+        return self.__coefs_mu
+
+    @_coefs_mu.setter
+    def _coefs_mu(self, value):
+        self.__coefs_mu = value
+
+    @property
+    def _coefs_theta(self):
+        return self.__coefs_theta
+
+    @_coefs_theta.setter
+    def _coefs_theta(self, value):
+        self.__coefs_theta = value
+
+    @property
+    def _domain(self):
+        return [self.model.workers.lower, self.model.workers.upper]
+
+    @property
+    def kind(self):
         """
-        self.model = model
-        self.kind  = kind
-        
-        # model equilibrium is completely described by the following
-        self.nodes   = None
-        self.coefs   = None
-        self.x_lower = None
-        self.x_upper = None
-        self.y_lower = None
-        self.y_upper = None
-        
-    def polynomial(self, coefs):
+        Kind of orthogonal polynomials to use in approximating the solution.
+
+        :getter: Return the current kind of orthogonal polynomials.
+        :setter: Set a new kind of orthogonal polynomials.
+        :type: string
+
         """
-        Orthogonal polynomial approximation of theta(x).
-        
-        Arguments:
-            
-            coefs:   (array-like) Chebyshev polynomial coefficients.
-            
-        Returns:
-            
-            poly: (object) Instance of an orthogonal polynomial class.
-            
-        """        
-        domain = [self.x_lower, self.x_upper]
-        
+        return self._kind
+
+    @kind.setter
+    def kind(self, kind):
+        """Set a new kind of orthogonal polynomials."""
+        self._kind = self._validate_kind(kind)
+
+    @property
+    def orthogonal_poly_mu(self):
+        r"""
+        Orthogonal polynomial approximation of the assignment function,
+        :math:`\mu(x)`.
+
+        :getter: Return the orthogonal polynomial approximation.
+        :type: numpy.polynomial.Polynomial
+
+        """
         if self.kind == 'Chebyshev':
-            poly = Chebyshev(coefs, domain)
-        elif self.kind == 'Legendre':
-            poly = Legendre(coefs, domain)
-        elif self.kind == 'Laguerre':
-            poly = Laguerre(coefs)
-        elif self.kind == 'Hermite':
-            poly = Hermite(coefs)
+            poly = np.polynomial.Chebyshev(self._coefs_mu, self._domain)
         else:
-            raise ValueError
-
+            assert False, "Invalid value specified for the 'kind' attribute."
         return poly
 
-    def residual(self, x, coefs, matching):
+    @property
+    def orthogonal_poly_theta(self):
+        r"""
+        Orthogonal polynomial approximation of the firm size function,
+        :math:`\theta(x)`.
+
+        :getter: Return the orthogonal polynomial approximation.
+        :type: numpy.polynomial.Polynomial
+
         """
-        Residual function for orthogonal collocation solution methods.
-        
-        Arguments:
-        
-            x:        (array-like) Value(s) of worker skill.
-            
-            coefs:    (array-like) (2, N) array of orthogonal polynomial 
-                      coefficients. The first row of coefficients is used to 
-                      constuct the theta_hat(x) approximation of the equilibrium 
-                      firm size function theta(x). The second row of
-                      coefficients is used to construct the mu_hat(x) 
-                      approximation of the equilibrium matching function mu(x). 
-                
-            matching: (str) One of either 'pam' or 'nam', depending on whether
-                      or not you wish to compute a positive or negative 
-                      assortative equilibrium.
-                      
-        Returns:
-            
-            residual: (array) Collocation residuals.    
-                            
-        """        
-        # construct the polynomial approximations of mu(x) and theta(x)
-        theta   = self.polynomial(coefs[0])
-        theta_x = theta.deriv()
-        
-        mu      = self.polynomial(coefs[1])
-        mu_x    = mu.deriv()
-        
-        # compute the residual polynomial
-        res_mu    = (mu_x(x) - 
-                     self.model.mu_prime(x, [theta(x), mu(x)], matching))
-        res_theta = (theta_x(x) - 
-                     self.model.theta_prime(x, [theta(x), mu(x)], matching))
-            
-        residual  = np.hstack((res_theta, res_mu)) 
-        
-        return residual
-    
+        if self.kind == 'Chebyshev':
+            poly = np.polynomial.Chebyshev(self._coefs_theta, self._domain)
+        else:
+            assert False, "Invalid value specified for the 'kind' attribute."
+        return poly
+
+    @staticmethod
+    def _validate_kind(kind):
+        """Validate the model attribute."""
+        valid_kinds = ['Chebyshev']
+        if not isinstance(kind, str):
+            mesg = ("Attribute 'kind' must have type str, not {}.")
+            raise AttributeError(mesg.format(kind.__class__))
+        elif kind not in valid_kinds:
+            mesg = "Attribute 'kind' must be one of {}."
+            raise AttributeError(mesg.format(valid_kinds))
+        else:
+            return kind
+
+    def evaluate_residual_mu(self, x):
+        V = np.hstack((self.orthogonal_poly_mu(x),
+                       self.orthogonal_poly_theta(x)))
+        mu_residual = (self.orthogonal_poly_mu.deriv()(x) -
+                       self.evaluate_rhs_mu(x, V))
+        return mu_residual
+
+    def evaluate_residual_theta(self, x):
+        V = np.hstack((self.orthogonal_poly_mu(x),
+                       self.orthogonal_poly_theta(x)))
+        theta_residual = (self.orthogonal_poly_theta.deriv()(x) -
+                          self.evaluate_rhs_theta(x, V))
+        return theta_residual
+
+    def evaluate_residuals(self, x):
+        residuals = np.hstack((self.evaluate_rhs_mu(x),
+                               self.evaluate_residual_theta(x)))
+        return residuals
+
+    def evaluate_rhs_mu(self, x, V):
+        raise NotImplementedError
+
+    def evaluate_rhs_theta(self, x, V):
+        raise NotImplementedError
+
     def system(self, coefs, nodes, matching):
         """
         System of non-linear equations for orthogonal collocation method.
