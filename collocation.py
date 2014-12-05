@@ -6,6 +6,7 @@ Module implementing an orthogonal collocation solver.
 
 """
 from __future__ import division
+
 import numpy as np
 
 import solvers
@@ -14,12 +15,14 @@ import solvers
 class OrthogonalCollocation(solvers.Solver):
     """Class representing an orthogonal collocation solver."""
 
-    __nodes = None
-
     def __init__(self, model, kind="Chebyshev"):
         """Create an instance of the OrthogonalCollocation class."""
         super(OrthogonalCollocation, self).__init__(model)
         self.kind = kind
+
+    @property
+    def _domain(self):
+        return [self.model.workers.lower, self.model.workers.upper]
 
     @property
     def kind(self):
@@ -41,7 +44,7 @@ class OrthogonalCollocation(solvers.Solver):
     @staticmethod
     def _validate_kind(kind):
         """Validate the kind attribute."""
-        valid_kinds = ['Chebyshev', 'Hermitian', 'Legendre', 'Laguerre']
+        valid_kinds = ['Chebyshev', 'Hermite', 'Legendre', 'Laguerre']
         if not isinstance(kind, str):
             mesg = ("Attribute 'kind' must have type str, not {}.")
             raise AttributeError(mesg.format(kind.__class__))
@@ -50,3 +53,35 @@ class OrthogonalCollocation(solvers.Solver):
             raise AttributeError(mesg.format(valid_kinds))
         else:
             return kind
+
+    def polynomial_factory(self, coefficients, kind):
+        """
+        Factory method for generating various orthogonal polynomials.
+
+        Parameters
+        ----------
+        coefficients : numpy.ndarray (shape=(N,))
+            Array of polynomial coefficients.
+        kind : string
+            Class of orthogonal polynomials to use as basic functions. Must be
+            one of "Chebyshev", "Hermite", "Laguerre", or "Legendre."
+
+        Returns
+        -------
+        polynomial : numpy.polynomial.Polynomial
+            Approximating polynomial.
+
+        """
+        if kind == "Chebyshev":
+            polynomial = np.polynomial.Chebyshev(coefficients, self._domain)
+        elif kind == "Hermite":
+            polynomial = np.polynomial.Hermite(coefficients, self._domain)
+        elif kind == "Laguerre":
+            polynomial = np.polynomial.Laguerre(coefficients, self._domain)
+        elif kind == "Legendre":
+            polynomial = np.polynomial.Legendre(coefficients, self._domain)
+        else:
+            mesg = ("Somehow you managed to specify an invalid 'kind' of " +
+                    "orthogonal polynomials!")
+            raise ValueError(mesg)
+        return polynomial
