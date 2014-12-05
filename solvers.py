@@ -223,6 +223,15 @@ class Solver(object):
         wage = self.model.matching.wage
         return wage.subs({'mu': V[0], 'theta': V[1]})
 
+    def _clear_cache(self):
+        """Clear cached functions used for numerical evaluation."""
+        self.__numeric_input_types = None
+        self.__numeric_profit = None
+        self.__numeric_quantities = None
+        self.__numeric_span_of_control = None
+        self.__numeric_type_resource = None
+        self.__numeric_wage = None
+
     @staticmethod
     def _validate_model(model):
         """Validate the model attribute."""
@@ -444,4 +453,5 @@ class Solver(object):
         assert wage > 0.0, "Wage should be non-negative!"
         return wage
 
-
+    def solve(self, *args, **kwargs):
+        raise NotImplementedError
