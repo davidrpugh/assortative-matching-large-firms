@@ -20,8 +20,13 @@ class OrthogonalCollocation(solvers.Solver):
         super(OrthogonalCollocation, self).__init__(model)
         self.kind = kind
 
+        # initialize coefficients to linear polynomials
+        self._coefficients_mu = np.array([0.0, 1.0])
+        self._coefficients_theta = np.array([0.0, 1.0])
+
     @property
     def _domain(self):
+        """Domain of approximation for the collocation solver."""
         return [self.model.workers.lower, self.model.workers.upper]
 
     @property
@@ -40,6 +45,30 @@ class OrthogonalCollocation(solvers.Solver):
     def kind(self, kind):
         """Set a new kind of orthogonal polynomials."""
         self._kind = self._validate_kind(kind)
+
+    @property
+    def orthogonal_polynomial_mu(self):
+        r"""
+        Orthogonal polynomial approximation of the equilibrium assignment
+        function, :math:`\mu(x)`.
+
+        :getter: Return the orthogonal polynomial approximation.
+        :type: numpy.polynomial.Polynomial
+
+        """
+        return self.polynomial_factory(self._coefficients_mu, self.kind)
+
+    @property
+    def orthogonal_polynomial_theta(self):
+        r"""
+        Orthogonal polynomial approximation of the firm size function,
+        :math:`\theta(x)`.
+
+        :getter: Return the orthogonal polynomial approximation.
+        :type: numpy.polynomial.Polynomial
+
+        """
+        return self.polynomial_factory(self._coefficients_theta, self.kind)
 
     @staticmethod
     def _validate_kind(kind):
