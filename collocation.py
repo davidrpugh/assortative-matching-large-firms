@@ -83,6 +83,48 @@ class OrthogonalCollocation(solvers.Solver):
         else:
             return kind
 
+    def evaluate_residual_mu(self, x):
+        r"""
+        Numerically evaluate the residual function for the polynomial
+        approximation of :math:`\mu(x)`
+
+        Parameters
+        ----------
+        x : numpy.
+            Value for worker skill (i.e., the independent variable).
+
+        Returns
+        -------
+        residual : numpy.ndarray
+
+        """
+        V = np.hstack((self.orthogonal_polynomial_mu(x),
+                       self.orthogonal_polynomial_theta(x)))
+        residual = (self.orthogonal_polynomial_mu.deriv()(x) -
+                    self.evaluate_rhs_mu(x, V))
+        return residual
+
+    def evaluate_residual_theta(self, x):
+        r"""
+        Numerically evaluate the residual function for the polynomial
+        approximation of :math:`\theta(x)`
+
+        Parameters
+        ----------
+        x : numpy.
+            Value for worker skill (i.e., the independent variable).
+
+        Returns
+        -------
+        residual : numpy.ndarray
+
+        """
+        V = np.hstack((self.orthogonal_polynomial_mu(x),
+                       self.orthogonal_polynomial_theta(x)))
+        residual = (self.orthogonal_polynomial_theta.deriv()(x) -
+                    self.evaluate_rhs_theta(x, V))
+        return residual
+
     def polynomial_factory(self, coefficients, kind):
         """
         Factory method for generating various orthogonal polynomials.
