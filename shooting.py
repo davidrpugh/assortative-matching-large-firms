@@ -31,17 +31,6 @@ class ShootingSolver(solvers.Solver):
         return self.__numeric_jacobian
 
     @property
-    def _symbolic_args(self):
-        """
-        Symbolic arguments used when lambdifying symbolic Jacobian and system.
-
-        :getter: Return the list of symbolic arguments.
-        :type: list
-
-        """
-        return self._symbolic_variables + self._symbolic_params
-
-    @property
     def _symbolic_equations(self):
         """
         Symbolic expressions defining the right-hand side of a system of ODEs.
@@ -64,18 +53,6 @@ class ShootingSolver(solvers.Solver):
         return self._symbolic_system.jacobian([V[0], V[1]])
 
     @property
-    def _symbolic_params(self):
-        """
-        Symbolic parameters passed as arguments when lambdifying symbolic
-        Jacobian and system.
-
-        :getter: Return the list of symbolic parameter arguments.
-        :type: list
-
-        """
-        return sym.var(list(self.model.params.keys()))
-
-    @property
     def _symbolic_system(self):
         """
         Symbolic matrix defining the right-hand side of a system of ODEs.
@@ -85,19 +62,7 @@ class ShootingSolver(solvers.Solver):
 
         """
         system = sym.Matrix(self._symbolic_equations)
-        return system.subs({'mu': V[0], 'theta': V[1]})
-
-    @property
-    def _symbolic_variables(self):
-        """
-        Symbolic variables passed as arguments when lambdifying symbolic
-        Jacobian and system.
-
-        :getter: Return the list of symbolic variable arguments.
-        :type: list
-
-        """
-        return [self.model.workers.var, V]
+        return system.subs(self._symbolic_change_of_vars)
 
     @property
     def integrator(self):

@@ -195,6 +195,17 @@ class Solver(object):
         return self._symbolic_variables + self._symbolic_params
 
     @property
+    def _symbolic_change_of_vars(self):
+        """
+        Symbolic change of variables
+
+        :getter: Return the dictionary of variables substitutions.
+        :type: dict
+
+        """
+        return {'mu': V[0], 'theta': V[1]}
+
+    @property
     def _symbolic_input_types(self):
         """
         Symbolic expression for complementarity between input types.
@@ -204,7 +215,7 @@ class Solver(object):
 
         """
         Fxy = self.model.matching.input_types
-        return Fxy.subs({'mu': V[0], 'theta': V[1]})
+        return Fxy.subs(self._symbolic_change_of_vars)
 
     @property
     def _symbolic_mu_prime(self):
@@ -215,7 +226,7 @@ class Solver(object):
         :type: sympy.Basic
 
         """
-        return self.model.matching.mu_prime.subs({'mu': V[0], 'theta': V[1]})
+        return self.model.matching.mu_prime.subs(self._symbolic_change_of_vars)
 
     @property
     def _symbolic_params(self):
@@ -239,7 +250,7 @@ class Solver(object):
 
         """
         profit = self.model.matching.profit
-        return profit.subs({'mu': V[0], 'theta': V[1]})
+        return profit.subs(self._symbolic_change_of_vars)
 
     @property
     def _symbolic_quantities(self):
@@ -251,7 +262,7 @@ class Solver(object):
 
         """
         Flr = self.model.matching.quantities
-        return Flr.subs({'mu': V[0], 'theta': V[1]})
+        return Flr.subs(self._symbolic_change_of_vars)
 
     @property
     def _symbolic_span_of_control(self):
@@ -263,7 +274,7 @@ class Solver(object):
 
         """
         Fyl = self.model.matching.span_of_control
-        return Fyl.subs({'mu': V[0], 'theta': V[1]})
+        return Fyl.subs(self._symbolic_change_of_vars)
 
     @property
     def _symbolic_theta_prime(self):
@@ -274,7 +285,7 @@ class Solver(object):
         :type: sympy.Basic
 
         """
-        return self.model.matching.theta_prime.subs({'mu': V[0], 'theta': V[1]})
+        return self.model.matching.theta_prime.subs(self._symbolic_change_of_vars)
 
     @property
     def _symbolic_type_resource(self):
@@ -287,7 +298,7 @@ class Solver(object):
 
         """
         Fxr = self.model.matching.type_resource
-        return Fxr.subs({'mu': V[0], 'theta': V[1]})
+        return Fxr.subs(self._symbolic_change_of_vars)
 
     @property
     def _symbolic_variables(self):
@@ -311,7 +322,7 @@ class Solver(object):
 
         """
         wage = self.model.matching.wage
-        return wage.subs({'mu': V[0], 'theta': V[1]})
+        return wage.subs(self._symbolic_change_of_vars)
 
     @property
     def model(self):
