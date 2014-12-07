@@ -13,8 +13,6 @@ class ShootingSolver(solvers.Solver):
 
     __numeric_jacobian = None
 
-    __numeric_system = None
-
     __integrator = None
 
     @property
@@ -31,21 +29,6 @@ class ShootingSolver(solvers.Solver):
                                                    self._symbolic_jacobian,
                                                    self._modules)
         return self.__numeric_jacobian
-
-    @property
-    def _numeric_system(self):
-        """
-        Vectorized function for numerical evaluation of model system.
-
-        :getter: Return current function for evaluating the system.
-        :type: function
-
-        """
-        if self.__numeric_system is None:
-            self.__numeric_system = sym.lambdify(self._symbolic_args,
-                                                 self._symbolic_system,
-                                                 self._modules)
-        return self.__numeric_system
 
     @property
     def _symbolic_args(self):
@@ -134,7 +117,6 @@ class ShootingSolver(solvers.Solver):
         """Clear cached functions used for numerical evaluation."""
         super(ShootingSolver, self)._clear_cache()
         self.__numeric_jacobian = None
-        self.__numeric_system = None
         self.__integrator = None
 
     def _converged_firms(self, tol):
@@ -283,7 +265,8 @@ class ShootingSolver(solvers.Solver):
             Right hand side of the system of ODEs.
 
         """
-        rhs = self._numeric_system(x, V, *self.model.params.values()).ravel()
+        rhs = np.hstack((self.evaluate_rhs_mu(x, V),
+                         self.evaluate_rhs_theta(x, V)))
         return rhs
 
     def solve(self, guess_firm_size_upper, tol=1e-6, number_knots=100,

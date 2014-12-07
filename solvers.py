@@ -20,11 +20,15 @@ class Solver(object):
 
     __numeric_input_types = None
 
+    __numeric_mu_prime = None
+
     __numeric_profit = None
 
     __numeric_quantities = None
 
     __numeric_span_of_control = None
+
+    __numeric_theta_prime = None
 
     __numeric_type_resource = None
 
@@ -33,10 +37,7 @@ class Solver(object):
     _modules = [{'ImmutableMatrix': np.array, 'erf': special.erf}, 'numpy']
 
     def __init__(self, model):
-        """
-        Create an instance of the Solver class.
-
-        """
+        """Create an instance of the Solver class."""
         self.model = model
 
     @property
@@ -54,6 +55,22 @@ class Solver(object):
                                                       self._symbolic_input_types,
                                                       self._modules)
         return self.__numeric_input_types
+
+    @property
+    def _numeric_mu_prime(self):
+        r"""
+        Vectorized function for numerical evaluation of the ODE describing
+        the behavior of :math:`\mu(x)`.
+
+        :getter: Return current function for evaluating :math:`\mu(x)'`.
+        :type: function
+
+        """
+        if self.__numeric_mu_prime is None:
+            self.__numeric_mu_prime = sym.lambdify(self._symbolic_args,
+                                                   self._symbolic_mu_prime,
+                                                   self._modules)
+        return self.__numeric_mu_prime
 
     @property
     def _numeric_profit(self):
@@ -101,6 +118,22 @@ class Solver(object):
                                                           self._symbolic_span_of_control,
                                                           self._modules)
         return self.__numeric_span_of_control
+
+    @property
+    def _numeric_theta_prime(self):
+        r"""
+        Vectorized function for numerical evaluation of the ODE describing
+        the behavior of :math:`\theta(x)`.
+
+        :getter: Return current function for evaluating :math:`\theta(x)'`.
+        :type: function
+
+        """
+        if self.__numeric_theta_prime is None:
+            self.__numeric_theta_prime = sym.lambdify(self._symbolic_args,
+                                                      self._symbolic_theta_prime,
+                                                      self._modules)
+        return self.__numeric_theta_prime
 
     @property
     def _numeric_type_resource(self):
@@ -151,6 +184,17 @@ class Solver(object):
         self.__solution = value
 
     @property
+    def _symbolic_args(self):
+        """
+        Symbolic arguments used when lambdifying symbolic Jacobian and system.
+
+        :getter: Return the list of symbolic arguments.
+        :type: list
+
+        """
+        return self._symbolic_variables + self._symbolic_params
+
+    @property
     def _symbolic_input_types(self):
         """
         Symbolic expression for complementarity between input types.
@@ -161,6 +205,29 @@ class Solver(object):
         """
         Fxy = self.model.matching.input_types
         return Fxy.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
+    def _symbolic_mu_prime(self):
+        r"""
+        Symbolic expression for the :math:`\mu'(x)`.
+
+        :getter: Return the symbolic expression.
+        :type: sympy.Basic
+
+        """
+        return self.model.matching.mu_prime.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
+    def _symbolic_params(self):
+        """
+        Symbolic parameters passed as arguments when lambdifying symbolic
+        Jacobian and system.
+
+        :getter: Return the list of symbolic parameter arguments.
+        :type: list
+
+        """
+        return sym.var(list(self.model.params.keys()))
 
     @property
     def _symbolic_profit(self):
@@ -199,6 +266,17 @@ class Solver(object):
         return Fyl.subs({'mu': V[0], 'theta': V[1]})
 
     @property
+    def _symbolic_theta_prime(self):
+        r"""
+        Symbolic expression for the :math:`\theta'(x)`.
+
+        :getter: Return the symbolic expression.
+        :type: sympy.Basic
+
+        """
+        return self.model.matching.theta_prime.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
     def _symbolic_type_resource(self):
         """
         Symbolic expression for complementarity between worker type and
@@ -210,6 +288,18 @@ class Solver(object):
         """
         Fxr = self.model.matching.type_resource
         return Fxr.subs({'mu': V[0], 'theta': V[1]})
+
+    @property
+    def _symbolic_variables(self):
+        """
+        Symbolic variables passed as arguments when lambdifying symbolic
+        Jacobian and system.
+
+        :getter: Return the list of symbolic variable arguments.
+        :type: list
+
+        """
+        return [self.model.workers.var, V]
 
     @property
     def _symbolic_wage(self):
@@ -292,9 +382,11 @@ class Solver(object):
     def _clear_cache(self):
         """Clear cached functions used for numerical evaluation."""
         self.__numeric_input_types = None
+        self.__numeric_mu_prime = None
         self.__numeric_profit = None
         self.__numeric_quantities = None
         self.__numeric_span_of_control = None
+        self.__numeric_theta_prime = None
         self.__numeric_type_resource = None
         self.__numeric_wage = None
 
@@ -387,10 +479,48 @@ class Solver(object):
         return quantities
 
     def evaluate_rhs_mu(self, x, V):
-        raise NotImplementedError
+        r"""
+        Numerically evaluate right-hand side ODE describing the behavior of
+        :math:`\mu'(x)`.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        rhs : numpy.array (shape=(2,))
+            Right hand side of :math:`\mu'(x)`.
+
+        """
+        rhs = self._numeric_mu_prime(x, V, *self.model.params.values()).ravel()
+        return rhs
 
     def evaluate_rhs_theta(self, x, V):
-        raise NotImplementedError
+        r"""
+        Numerically evaluate right-hand side ODE describing the behavior of
+        :math:`\theta'(x)`.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        rhs : numpy.array (shape=(2,))
+            Right hand side of :math:`\theta'(x)`.
+
+        """
+        rhs = self._numeric_theta_prime(x, V, *self.model.params.values()).ravel()
+        return rhs
 
     def evaluate_type_resource(self, x, V):
         r"""
