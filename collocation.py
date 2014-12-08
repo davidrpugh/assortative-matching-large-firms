@@ -30,6 +30,27 @@ class OrthogonalCollocation(solvers.Solver):
         return [self.model.workers.lower, self.model.workers.upper]
 
     @property
+    def boundary_conditions(self):
+        """
+        Boundary conditions for the problem.
+
+        :getter: Return the array of boundary conditions.
+        :type: numpy.ndarray
+
+        """
+        if self.model.matching.assortativity == 'positive':
+            lower = (self.orthogonal_polynomial_mu(self.model.workers.lower) -
+                     self.model.firms.lower)
+            upper = (self.orthogonal_polynomial_mu(self.model.workers.upper) -
+                     self.model.firms.upper)
+        else:
+            lower = (self.orthogonal_polynomial_mu(self.model.workers.lower) -
+                     self.model.firms.upper)
+            upper = (self.orthogonal_polynomial_mu(self.model.workers.upper) -
+                     self.model.firms.lower)
+        return np.hstack((lower, upper))
+
+    @property
     def kind(self):
         """
         Kind of orthogonal polynomials to use in approximating the solution.
