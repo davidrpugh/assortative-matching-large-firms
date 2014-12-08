@@ -25,6 +25,22 @@ class OrthogonalCollocation(solvers.Solver):
         self._coefficients_theta = np.array([0.0, 1.0])
 
     @property
+    def _collocation_nodes_mu(self):
+        r"""Collocation nodes for approximation of :math:`\mu(x)`."""
+        basis_coefs = np.zeros(self._coefficients_mu.size)
+        basis_coefs[-1] = 1
+        basis_poly = self.polynomial_factory(basis_coefs, self.kind)
+        return basis_poly.roots()
+
+    @property
+    def _collocation_nodes_theta(self):
+        r"""Collocation nodes for approximation of :math:`\theta(x)`."""
+        basis_coefs = np.zeros(self._coefficients_theta.size)
+        basis_coefs[-1] = 1
+        basis_poly = self.polynomial_factory(basis_coefs, self.kind)
+        return basis_poly.roots()
+
+    @property
     def _domain(self):
         """Domain of approximation for the collocation solver."""
         return [self.model.workers.lower, self.model.workers.upper]
