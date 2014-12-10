@@ -25,6 +25,21 @@ class OrthogonalCollocation(solvers.Solver):
         self._coefficients_theta = np.array([0.0, 1.0])
 
     @property
+    def _boundary_conditions(self):
+        """Boundary conditions for the problem."""
+        if self.model.matching.assortativity == 'positive':
+            lower = (self.orthogonal_polynomial_mu(self.model.workers.lower) -
+                     self.model.firms.lower)
+            upper = (self.orthogonal_polynomial_mu(self.model.workers.upper) -
+                     self.model.firms.upper)
+        else:
+            lower = (self.orthogonal_polynomial_mu(self.model.workers.lower) -
+                     self.model.firms.upper)
+            upper = (self.orthogonal_polynomial_mu(self.model.workers.upper) -
+                     self.model.firms.lower)
+        return np.hstack((lower, upper))
+
+    @property
     def _collocation_nodes_mu(self):
         r"""Collocation nodes for approximation of :math:`\mu(x)`."""
         basis_coefs = np.zeros(self._coefficients_mu.size)
@@ -41,30 +56,17 @@ class OrthogonalCollocation(solvers.Solver):
         return basis_poly.roots()
 
     @property
+    def _collocation_system(self):
+        """System of non-linear equations whose solution is the coefficients."""
+        tup = (self._boundary_conditions,
+               self.evaluate_residual_mu(self._collocation_nodes_mu),
+               self.evaluate_residual_theta(self._collocation_nodes_theta))
+        return np.hstack(tup)
+
+    @property
     def _domain(self):
         """Domain of approximation for the collocation solver."""
         return [self.model.workers.lower, self.model.workers.upper]
-
-    @property
-    def boundary_conditions(self):
-        """
-        Boundary conditions for the problem.
-
-        :getter: Return the array of boundary conditions.
-        :type: numpy.ndarray
-
-        """
-        if self.model.matching.assortativity == 'positive':
-            lower = (self.orthogonal_polynomial_mu(self.model.workers.lower) -
-                     self.model.firms.lower)
-            upper = (self.orthogonal_polynomial_mu(self.model.workers.upper) -
-                     self.model.firms.upper)
-        else:
-            lower = (self.orthogonal_polynomial_mu(self.model.workers.lower) -
-                     self.model.firms.upper)
-            upper = (self.orthogonal_polynomial_mu(self.model.workers.upper) -
-                     self.model.firms.lower)
-        return np.hstack((lower, upper))
 
     @property
     def kind(self):
@@ -120,10 +122,16 @@ class OrthogonalCollocation(solvers.Solver):
         else:
             return kind
 
+    def evaluate_boundary_conditions(self, x):
+        raise NotImplementedError
+
+    def evaluate_collocation_system(self, x):
+        raise NotImplementedError
+
     def evaluate_residual_mu(self, x):
         r"""
-        Numerically evaluate the residual function for the polynomial
-        approximation of :math:`\mu(x)`
+        Numerically evaluate the residual function for the orthogonal
+        polynomial approximation of :math:`\mu(x)`
 
         Parameters
         ----------
@@ -133,6 +141,7 @@ class OrthogonalCollocation(solvers.Solver):
         Returns
         -------
         residual : numpy.ndarray
+            The residual function for the orthogonal polynomial approximation.
 
         """
         V = np.hstack((self.orthogonal_polynomial_mu(x),
@@ -154,6 +163,7 @@ class OrthogonalCollocation(solvers.Solver):
         Returns
         -------
         residual : numpy.ndarray
+            The residual function for the orthogonal polynomial approximation.
 
         """
         V = np.hstack((self.orthogonal_polynomial_mu(x),
