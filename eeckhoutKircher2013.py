@@ -196,98 +196,10 @@ class Model(object):
             check = (LHS >= RHS)
 
         return check
-        
-    def set_solver(self, solver='OrthogonalCollocation', kind='Chebyshev'):
-        """
-        Sets the model's solver attribute.
-        
-        Arguments:
-            
-            solver: (str) A valid solver class. Must be one of 'Shooting',
-                    'FiniteElements', or 'OrthogonalCollocation.' Default is
-                    to use 'OrthogonalCollocation.'
-            
-            kind:   (str) If using an 'OrthogonalCollocation' solver, kind 
-                    specifies the class of orthogonal polynomials to use as 
-                    basis functions. Must be one of 'Chebyshev', 'Legendre', 
-                    'Laguerre', or 'Hermite'.
-                
-        """
-        if solver == 'OrthogonalCollocation':
-            self.solver = OrthogonalCollocation(self, kind)
-            
-        elif solver == 'FiniteElements':
-            self.solver = FiniteElements(self)
-            
-        elif solver == 'Shooting':
-            self.solver = Shooting(self)
-            
-        else:
-            raise ValueError
-                
+                        
     ############### Methods for plotting ###############
     
-    def plot_equilibrium_theta(self, ax=None, N=1000, xaxis='worker_skill', 
-                               color='b'):
-        """
-        Generates a plot of the equilibrium firm size function, theta(x). User
-        can plot firm size as a function of either worker skill, x, or firm
-        productivity, y, by appropriately specifying the xaxis keyword arg.
-        
-        Arguments:
-            
-            ax:     (object) AxesSubplot instance on which to place the plot.
-                   
-            N:      (int) Number of points to plot.
-            
-            xaxis:  (str) One of either 'worker_skill' or 'firm_productivity', 
-                    depending. Default is 'worker_skill'.
-                   
-            color:  (various) Valid Matplotlib color.
-                                
-        """
-        if ax == None:
-            ax = plt.subplot(111)
-            
-        # create the grid of values against which to plot theta(x)
-        x_lower, x_upper = self.workers.lower_bound, self.workers.upper_bound
-        x_grid = np.linspace(x_lower, x_upper, N) 
-        
-        # extract the equilibrium theta(x)
-        theta = self.equilibrium['theta']
-        
-        # plot the equilibrium theta as a function of...
-        if xaxis == 'worker_skill': 
-            ax.plot(x_grid, theta(x_grid), color=color),
-            ax.set_xlabel('Worker skill, $x$', fontsize=15, family='serif')
-            ax.set_ylabel(r'$\theta(x)$', rotation='horizontal', fontsize=15)
-            
-        elif xaxis == 'firm_productivity':
-            
-            # extract the matching function 
-            mu = self.equilibrium['mu']
-            
-            # invert mu(x) = y using PCHIP interpolation 
-            x_lower, x_upper = self.workers.lower_bound, self.workers.upper_bound
-            x_grid = np.linspace(x_lower, x_upper, N)
-            
-            # mu(x) may be increasing or decreasing!
-            data = np.hstack((x_grid[:,np.newaxis], mu(x_grid)[:,np.newaxis]))
-            data = data[data[:,1].argsort()]
-            inverse_mu = interpolate.PchipInterpolator(data[:,1], data[:,0])
-        
-            # grid of values for plotting the matching function
-            mu_lower = mu(x_lower)
-            mu_upper = mu(x_upper)
-            mu_grid  = np.linspace(mu_lower, mu_upper, N)
-                                   
-            ax.plot(mu_grid, theta(inverse_mu(mu_grid)), color=color),
-            ax.set_xlabel('Firm productivity, $y$', fontsize=15, family='serif')
-            ax.set_ylabel(r'$\theta(y)$', rotation='horizontal', fontsize=15)
-                   
-        else:
-             raise ValueError ("'xaxis' must be one of 'worker_skill', or " +
-                               "'firm_productivity'.")
+    
     
     def plot_equilibrium_theta_dist(self, ax=None, N=1000, color='b', 
                                     which='cdf'):

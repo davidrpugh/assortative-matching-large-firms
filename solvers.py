@@ -717,6 +717,45 @@ class ShootingSolver(object):
         assert wage > 0.0, "Wage should be non-negative!"
         return wage
 
+    def plot_equilibrium_firm_size(self, ax, xaxis='worker_skill', **kwargs):
+        """
+        Generates a plot of the equilibrium firm size function, theta(x).
+
+        Parameters
+        ----------
+        ax : matplotlib.AxesSubplot
+        xaxis : string (default='worker_skill')
+            One of either 'worker_skill' or 'firm_productivity', depending.
+
+        Returns
+        -------
+        A list containing:
+
+        theta_line: matplotlib.Line2D
+            A matplotlib.Line2D instance representing the equilibrium firm size
+            as a function of either worker skill or firm productivity.
+
+        """
+        if xaxis == 'worker_skill':
+            theta_line = self.solution['firm size'].plot(ax=ax, **kwargs)
+            ax.set_xlabel('Worker skill, $x$', fontsize=15, family='serif')
+            ax.set_ylabel(r'$\theta(x)$', rotation='horizontal', fontsize=20)
+
+        # What happens if theta(x) is non-monotonic!!!
+        elif xaxis == 'firm_productivity':
+            theta_line, = ax.plot(self.solution['firm productivity'],
+                                  self.solution['firm size'], **kwargs)
+            ax.set_xlim(self.model.firms.lower, self.model.firms.upper)
+            ax.set_xlabel('Firm productivity, $y$', fontsize=15, family='serif')
+            ax.set_ylabel(r'$\theta(y)$', rotation='horizontal', fontsize=20)
+            ax.grid('on')
+        else:
+            mesg = ("'xaxis' must be one of 'worker_skill', or " +
+                    "'firm_productivity'.")
+            raise ValueError(mesg)
+
+        return [theta_line]
+
     def solve(self, guess_firm_size_upper, tol=1e-6, number_knots=100,
               integrator='dopri5', message=False, **kwargs):
         """
