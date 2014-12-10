@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from scipy import integrate, special
+from scipy import integrate, interpolate, special
 import sympy as sym
 
 import models
@@ -609,27 +609,6 @@ class ShootingSolver(object):
         assert profit > 0.0, "Profit should be non-negative!"
         return profit
 
-    def evaluate_rhs(self, x, V):
-        r"""
-        Numerically evaluate right-hand side of the system of ODEs.
-
-        Parameters
-        ----------
-        x : float
-            Value for worker skill (i.e., the independent variable).
-        V : numpy.array (shape=(2,))
-            Array of values for the dependent variables with ordering:
-            :math:`[\mu, \theta]`.
-
-        Returns
-        -------
-        rhs : numpy.array (shape=(2,))
-            Right hand side of the system of ODEs.
-
-        """
-        rhs = self._numeric_system(x, V, *self.model.params.values()).ravel()
-        return rhs
-
     def evaluate_quantities(self, x, V):
         r"""
         Numerically evaluate quantities complementarity.
@@ -650,6 +629,65 @@ class ShootingSolver(object):
         """
         quantities = self._numeric_quantities(x, V, *self.model.params.values())
         return quantities
+
+    def evaluate_residual(self, x, k=3, ext=2):
+        r"""
+        The residual is the difference between the derivative of the B-spline
+        approximation of the solution trajectory and the right-hand side of the
+        original ODE evaluated along the approximated solution trajectory.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            Array of values for worker skill at which to interpolate the
+            value of the B-spline.
+        k : int, optional(default=3)
+            Degree of the desired B-spline. Degree must satisfy
+            :math:`1 \le k \le 5`.
+        ext : int, optional(default=2)
+            Controls the value of returned elements for outside the
+            original knot sequence provided by traj. For extrapolation, set
+            `ext=0`; `ext=1` returns zero; `ext=2` raises a `ValueError`.
+
+        Returns
+        -------
+        residual : numpy.ndarray
+            An array containing the solution residuals.
+
+        """
+        # B-spline approximations of the solution and its derivative
+        soln = self.interpolate(x, k, 0, ext)
+        deriv = self.interpolate(x, k, 1, ext)
+
+        # rhs of ode evaluated along approximate solution
+        T = x.size
+        rhs_ode = np.vstack(self.evaluate_rhs(x[i], soln[i, :]) for i in range(T))
+
+        # should be roughly zero everywhere (if approximation is good!)
+        residual = deriv - rhs_ode
+
+        return residual
+
+    def evaluate_rhs(self, x, V):
+        r"""
+        Numerically evaluate right-hand side of the system of ODEs.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        rhs : numpy.array (shape=(2,))
+            Right hand side of the system of ODEs.
+
+        """
+        rhs = self._numeric_system(x, V, *self.model.params.values()).ravel()
+        return rhs
 
     def evaluate_type_resource(self, x, V):
         r"""
@@ -716,6 +754,50 @@ class ShootingSolver(object):
         wage = self._numeric_wage(x, V, *self.model.params.values())
         assert wage > 0.0, "Wage should be non-negative!"
         return wage
+
+    def interpolate(self, x, k=3, der=0, ext=2):
+        r"""
+        Parametric B-spline interpolation of the model solution.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            Values for worker skill (i.e., the independent variable) at which
+            to interpolate the solution.
+        k : int, optional(default=3)
+            Degree of the desired B-spline. Degree must satisfy
+            :math:`1 \le k \le 5`.
+        der : int, optional(default=0)
+            The order of derivative of the spline to compute (must be less
+            than or equal to `k`).
+        ext : int, optional(default=2) Controls the value of returned elements
+            for outside the original knot sequence provided by traj. For
+            extrapolation, set `ext=0`; `ext=1` returns zero; `ext=2` raises a
+            `ValueError`.
+
+        Returns
+        -------
+        interp_traj: ndarray (float)
+            The interpolated trajectory.
+
+        """
+        # array of parameter values
+        u = self.solution.index.values
+
+        # build list of input arrays
+        X = [self.solution['firm productivity'].values,
+             self.solution['firm size'].values]
+
+        # construct the B-spline representation (s=0 forces interpolation!)
+        tck, t = interpolate.splprep(X, u=u, k=k, s=0)
+
+        # evaluate the B-spline (returns a list)
+        out = interpolate.splev(x, tck, der, ext)
+
+        # convert to a 2D array
+        interp_traj = np.array(out).T
+
+        return interp_traj
 
     def solve(self, guess_firm_size_upper, tol=1e-6, number_knots=100,
               integrator='dopri5', message=False, **kwargs):
