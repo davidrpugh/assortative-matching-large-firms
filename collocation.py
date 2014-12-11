@@ -21,13 +21,13 @@ class OrthogonalCollocation(solvers.Solver):
         self.kind = kind
 
         # initialize coefficients to linear polynomials
-        self._coefficients_mu = np.array([0.0, 1.0])
+        self._coefficients_mu = self._initialize_coefficients_mu()
         self._coefficients_theta = np.array([0.0, 1.0])
 
     @property
     def _boundary_conditions(self):
         """Boundary conditions for the problem."""
-        if self.model.matching.assortativity == 'positive':
+        if self.model.assortativity == 'positive':
             lower = (self.orthogonal_polynomial_mu(self.model.workers.lower) -
                      self.model.firms.lower)
             upper = (self.orthogonal_polynomial_mu(self.model.workers.upper) -
@@ -108,6 +108,42 @@ class OrthogonalCollocation(solvers.Solver):
 
         """
         return self.polynomial_factory(self._coefficients_theta, self.kind)
+
+    def _initialize_coefficients_mu(self):
+        """Intitialize the coefficients for the orthogonal polynomial mu."""
+        # construct a basis polynomial of the appropriate kind
+        basis_coefs = np.array([0.0, 1.0])
+        tmp_polynomial = self.polynomial_factory(basis_coefs, self.kind)
+
+        # fit a linear polynomial to get the inial coefs
+        x = np.hstack((self.model.workers.lower, self.model.workers.upper))
+        if self.model.assortativity == 'positive':
+            y = np.hstack((self.model.firms.lower, self.model.firms.upper))
+        else:
+            y = np.hstack((self.model.firms.upper, self.model.firms.lower))
+        linear_mu = tmp_polynomial.fit(x, y, 1)
+        initial_coefs_mu = linear_mu.coef
+
+        return initial_coefs_mu
+
+    def _intialize_coefficients_theta(self):
+        """Intitialize the coefficients for the orthogonal polynomial theta."""
+        # construct a basis polynomial of the appropriate kind
+        basis_coefs = np.array([0.0, 1.0])
+        tmp_polynomial = self.polynomial_factory(basis_coefs, self.kind)
+
+        # fit a linear polynomial to get the inial coefs
+        x = np.hstack((self.model.workers.lower, self.model.workers.upper))
+        slope = ((self.model.firms.upper - self.model.firms.lower) /
+                 (self.model.workers.upper - self.model.workers.lower))
+        if self.model.assortativity == 'positive':
+            y = self.evaluate_H(x) / slope
+        else:
+            y = -self.evaluate_H(x) / slope
+        linear_theta = tmp_polynomial.fit(x, y, 1)
+        initial_coefs_theta = linear_theta.coef
+
+        return initial_coefs_theta
 
     @staticmethod
     def _validate_kind(kind):

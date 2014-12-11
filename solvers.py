@@ -424,6 +424,10 @@ class Solver(object):
         else:
             pass
 
+    def evaluate_density_ratio(self, x):
+        """Numerically evaluate ratio of pdfs of the inputs to production."""
+        raise NotImplementedError
+
     def evaluate_input_types(self, x, V):
         r"""
         Numerically evaluate complementarity between input types.
