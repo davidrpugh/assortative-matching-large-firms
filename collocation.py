@@ -164,6 +164,9 @@ class OrthogonalCollocation(solvers.Solver):
     def evaluate_collocation_system(self, x):
         raise NotImplementedError
 
+    def evaluate_mu(self, x):
+        return self.orthogonal_polynomial_mu(x)
+
     def evaluate_residual_mu(self, x):
         r"""
         Numerically evaluate the residual function for the orthogonal
@@ -180,10 +183,9 @@ class OrthogonalCollocation(solvers.Solver):
             The residual function for the orthogonal polynomial approximation.
 
         """
-        V = np.hstack((self.orthogonal_polynomial_mu(x),
-                       self.orthogonal_polynomial_theta(x)))
-        residual = (self.orthogonal_polynomial_mu.deriv()(x) -
-                    self.evaluate_rhs_mu(x, V))
+        V = np.hstack((self.evaluate_mu(x), self.evaluate_theta(x)))
+        residual = (self.evaluate_mu_prime(x) -
+                    self.evaluate_rhs_mu_prime(x, V))
         return residual
 
     def evaluate_residual_theta(self, x):
@@ -202,11 +204,17 @@ class OrthogonalCollocation(solvers.Solver):
             The residual function for the orthogonal polynomial approximation.
 
         """
-        V = np.hstack((self.orthogonal_polynomial_mu(x),
-                       self.orthogonal_polynomial_theta(x)))
-        residual = (self.orthogonal_polynomial_theta.deriv()(x) -
-                    self.evaluate_rhs_theta(x, V))
+        V = np.hstack((self.evaluate_mu(x), self.evaluate_theta(x)))
+        residual = (self.evaluate_theta_prime(x) -
+                    self.evaluate_rhs_theta_prime(x, V))
         return residual
+
+    def evaluate_theta(self, x):
+        return self.orthogonal_polynomial_theta(x)
+
+    def evaluate_theta_prime(self, x):
+        theta_prime = self.orthogonal_polynomial_theta.deriv()
+        return theta_prime(x)
 
     def polynomial_factory(self, coefficients, kind):
         """

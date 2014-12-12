@@ -425,8 +425,24 @@ class Solver(object):
             pass
 
     def evaluate_density_ratio(self, x):
-        """Numerically evaluate ratio of pdfs of the inputs to production."""
-        raise NotImplementedError
+        """
+        Numerically evaluate the probability density ratio for the inputs.
+
+        Parameters
+        ----------
+        x : numpy.ndarray (shape=(1,))
+            Array of values of the independent variable at which to evaluate
+            the probability density ratio.
+
+        Returns
+        -------
+        H : numpy.ndarray (shape=(1,))
+            Array of values for the probability density ratio.
+
+        """
+        mu = self.evalutate_mu(x)
+        H = self.model.workers.evaluate_pdf(x) / self.firms.evaluate_pdf(mu)
+        return H
 
     def evaluate_input_types(self, x, V):
         r"""
@@ -448,6 +464,14 @@ class Solver(object):
         """
         input_types = self._numeric_input_types(x, V, *self.model.params.values())
         return input_types
+
+    def evaluate_mu(self, x):
+        r"""Numerically evaluate the solution function :math:`\hat{\mu}(x)`."""
+        raise NotImplementedError
+
+    def evaluate_mu_prime(self, x):
+        r"""Numerically evaluate the solution function :math:`\hat{\mu}'(x)`."""
+        raise NotImplementedError
 
     def evaluate_profit(self, x, V):
         r"""
@@ -493,7 +517,49 @@ class Solver(object):
         quantities = self._numeric_quantities(x, V, *self.model.params.values())
         return quantities
 
-    def evaluate_rhs_mu(self, x, V):
+    def evaluate_residual_mu(self, x):
+        r"""
+        Numerically evaluate the residual function for :math:`\hat{\mu}(x)`
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            Values of the independent variable at which to evaluate the
+            residual function.
+
+        Returns
+        -------
+        residual : numpy.ndarray
+            Residuals given the approximation :math:`\hat{\mu}(x)`.
+
+        """
+        V = np.hstack((self.evaluate_mu(x), self.evaluate_theta(x)))
+        residual = (self.evaluate_mu_prime(x) -
+                    self.evaluate_rhs_mu_prime(x, V))
+        return residual
+
+    def evaluate_residual_theta(self, x):
+        r"""
+        Numerically evaluate the residual function for :math:`\hat{\theta}(x)`
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            Values of the independent variable at which to evaluate the
+            residual function.
+
+        Returns
+        -------
+        residual : numpy.ndarray
+            Residuals given the approximation :math:`\hat{\theta}(x)`.
+
+        """
+        V = np.hstack((self.evaluate_mu(x), self.evaluate_theta(x)))
+        residual = (self.evaluate_theta_prime(x) -
+                    self.evaluate_rhs_theta_prime(x, V))
+        return residual
+
+    def evaluate_rhs_mu_prime(self, x, V):
         r"""
         Numerically evaluate right-hand side ODE describing the behavior of
         :math:`\mu'(x)`.
@@ -515,7 +581,7 @@ class Solver(object):
         rhs = self._numeric_mu_prime(x, V, *self.model.params.values()).ravel()
         return rhs
 
-    def evaluate_rhs_theta(self, x, V):
+    def evaluate_rhs_theta_prime(self, x, V):
         r"""
         Numerically evaluate right-hand side ODE describing the behavior of
         :math:`\theta'(x)`.
@@ -536,6 +602,14 @@ class Solver(object):
         """
         rhs = self._numeric_theta_prime(x, V, *self.model.params.values()).ravel()
         return rhs
+
+    def evaluate_theta(self, x):
+        r"""Numerically evaluate the solution function :math:`\hat{\theta}(x)`."""
+        raise NotImplementedError
+
+    def evaluate_theta_prime(self, x):
+        r"""Numerically evaluate the solution function :math:`\hat{\theta}'(x)`."""
+        raise NotImplementedError
 
     def evaluate_type_resource(self, x, V):
         r"""

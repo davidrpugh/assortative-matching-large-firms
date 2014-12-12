@@ -230,8 +230,8 @@ class ShootingSolver(solvers.Solver):
             Right hand side of the system of ODEs.
 
         """
-        rhs = np.hstack((self.evaluate_rhs_mu(x, V),
-                         self.evaluate_rhs_theta(x, V)))
+        rhs = np.hstack((self.evaluate_rhs_mu_prime(x, V),
+                         self.evaluate_rhs_theta_prime(x, V)))
         return rhs
 
     def solve(self, guess_firm_size_upper, tol=1e-6, number_knots=100,
