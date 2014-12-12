@@ -440,8 +440,9 @@ class Solver(object):
             Array of values for the probability density ratio.
 
         """
-        mu = self.evalutate_mu(x)
-        H = self.model.workers.evaluate_pdf(x) / self.firms.evaluate_pdf(mu)
+        mu = self.evaluate_mu(x)
+        H = (self.model.workers.evaluate_pdf(x) /
+             self.model.firms.evaluate_pdf(mu))
         return H
 
     def evaluate_input_types(self, x, V):

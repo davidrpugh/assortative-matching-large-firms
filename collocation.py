@@ -22,7 +22,7 @@ class OrthogonalCollocation(solvers.Solver):
 
         # initialize coefficients to linear polynomials
         self._coefficients_mu = self._initialize_coefficients_mu()
-        self._coefficients_theta = np.array([0.0, 1.0])
+        self._coefficients_theta = self._intialize_coefficients_theta()
 
     @property
     def _boundary_conditions(self):
@@ -137,9 +137,9 @@ class OrthogonalCollocation(solvers.Solver):
         slope = ((self.model.firms.upper - self.model.firms.lower) /
                  (self.model.workers.upper - self.model.workers.lower))
         if self.model.assortativity == 'positive':
-            y = self.evaluate_H(x) / slope
+            y = self.evaluate_density_ratio(x) / np.repeat(slope, 2)
         else:
-            y = -self.evaluate_H(x) / slope
+            y = -self.evaluate_density_ratio(x) / np.repeat(slope, 2)
         linear_theta = tmp_polynomial.fit(x, y, 1)
         initial_coefs_theta = linear_theta.coef
 
