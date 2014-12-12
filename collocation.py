@@ -165,54 +165,20 @@ class OrthogonalCollocation(solvers.Solver):
         raise NotImplementedError
 
     def evaluate_mu(self, x):
+        r"""Numerically evaluate the solution function :math:`\hat{\mu}(x)`."""
         return self.orthogonal_polynomial_mu(x)
 
-    def evaluate_residual_mu(self, x):
-        r"""
-        Numerically evaluate the residual function for the orthogonal
-        polynomial approximation of :math:`\mu(x)`
-
-        Parameters
-        ----------
-        x : numpy.
-            Value for worker skill (i.e., the independent variable).
-
-        Returns
-        -------
-        residual : numpy.ndarray
-            The residual function for the orthogonal polynomial approximation.
-
-        """
-        V = np.hstack((self.evaluate_mu(x), self.evaluate_theta(x)))
-        residual = (self.evaluate_mu_prime(x) -
-                    self.evaluate_rhs_mu_prime(x, V))
-        return residual
-
-    def evaluate_residual_theta(self, x):
-        r"""
-        Numerically evaluate the residual function for the polynomial
-        approximation of :math:`\theta(x)`
-
-        Parameters
-        ----------
-        x : numpy.
-            Value for worker skill (i.e., the independent variable).
-
-        Returns
-        -------
-        residual : numpy.ndarray
-            The residual function for the orthogonal polynomial approximation.
-
-        """
-        V = np.hstack((self.evaluate_mu(x), self.evaluate_theta(x)))
-        residual = (self.evaluate_theta_prime(x) -
-                    self.evaluate_rhs_theta_prime(x, V))
-        return residual
+    def evaluate_mu_prime(self, x):
+        r"""Numerically evaluate the solution function :math:`\hat{\mu}'(x)`."""
+        theta_prime = self.orthogonal_polynomial_mu.deriv()
+        return theta_prime(x)
 
     def evaluate_theta(self, x):
+        r"""Numerically evaluate the solution function :math:`\hat{\theta}(x)`."""
         return self.orthogonal_polynomial_theta(x)
 
     def evaluate_theta_prime(self, x):
+        r"""Numerically evaluate the solution function :math:`\hat{\theta}'(x)`."""
         theta_prime = self.orthogonal_polynomial_theta.deriv()
         return theta_prime(x)
 
