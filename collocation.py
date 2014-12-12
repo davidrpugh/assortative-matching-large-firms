@@ -8,6 +8,7 @@ Module implementing an orthogonal collocation solver.
 from __future__ import division
 
 import numpy as np
+from scipy import optimize
 
 import solvers
 
@@ -28,14 +29,14 @@ class OrthogonalCollocation(solvers.Solver):
     def _boundary_conditions(self):
         """Boundary conditions for the problem."""
         if self.model.assortativity == 'positive':
-            lower = (self.orthogonal_polynomial_mu(self.model.workers.lower) -
+            lower = (self.evaluate_mu(self.model.workers.lower) -
                      self.model.firms.lower)
-            upper = (self.orthogonal_polynomial_mu(self.model.workers.upper) -
+            upper = (self.evaluate_mu(self.model.workers.upper) -
                      self.model.firms.upper)
         else:
-            lower = (self.orthogonal_polynomial_mu(self.model.workers.lower) -
+            lower = (self.evaluate_mu(self.model.workers.lower) -
                      self.model.firms.upper)
-            upper = (self.orthogonal_polynomial_mu(self.model.workers.upper) -
+            upper = (self.evaluate_mu(self.model.workers.upper) -
                      self.model.firms.lower)
         return np.hstack((lower, upper))
 
@@ -58,9 +59,9 @@ class OrthogonalCollocation(solvers.Solver):
     @property
     def _collocation_system(self):
         """System of non-linear equations whose solution is the coefficients."""
-        tup = (self._boundary_conditions,
-               self.evaluate_residual_mu(self._collocation_nodes_mu),
-               self.evaluate_residual_theta(self._collocation_nodes_theta))
+        tup = (self.evaluate_residual_mu(self._collocation_nodes_mu),
+               self.evaluate_residual_theta(self._collocation_nodes_theta),
+               self._boundary_conditions)
         return np.hstack(tup)
 
     @property
@@ -108,6 +109,12 @@ class OrthogonalCollocation(solvers.Solver):
 
         """
         return self.polynomial_factory(self._coefficients_theta, self.kind)
+
+    def _evaluate_collocation_residual(self, coefs, degree):
+        """Collocation residual should be zero for optimal coefficents."""
+        self._coefficients_mu = coefs[:degree+1]
+        self._coefficients_theta = coefs[degree+1:]
+        return self._collocation_system
 
     def _initialize_coefficients_mu(self):
         """Intitialize the coefficients for the orthogonal polynomial mu."""
@@ -158,12 +165,6 @@ class OrthogonalCollocation(solvers.Solver):
         else:
             return kind
 
-    def evaluate_boundary_conditions(self, x):
-        raise NotImplementedError
-
-    def evaluate_collocation_system(self, x):
-        raise NotImplementedError
-
     def evaluate_mu(self, x):
         r"""Numerically evaluate the solution function :math:`\hat{\mu}(x)`."""
         return self.orthogonal_polynomial_mu(x)
@@ -213,3 +214,15 @@ class OrthogonalCollocation(solvers.Solver):
                     "orthogonal polynomials!")
             raise ValueError(mesg)
         return polynomial
+
+    def solve(self, initial_coefs, degree, method='hybr', **kwargs):
+        """Solve the system of non-linear equations."""
+        self._coefficients_mu = initial_coefs[:degree+1]
+        self._coefficients_theta = initial_coefs[degree+1:]
+
+        result = optimize.root(self._evaluate_collocation_residual,
+                               x0=initial_coefs,
+                               args=(degree,),
+                               method=method,
+                               **kwargs)
+        return result
