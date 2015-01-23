@@ -414,6 +414,23 @@ class ShootingSolver(object):
         self.__numeric_wage = None
         self.__integrator = None
 
+    def _compute_step_sizes(self, number_knots, knots):
+        """Computes an array of implied step sizes given some knot sequence."""
+        x_lower = self.model.workers.lower
+        x_upper = self.model.workers.upper
+
+        if (number_knots is not None) and (knots is None):
+            step_size = (x_upper - x_lower) / (number_knots - 1)
+            step_sizes = np.repeat(step_size, number_knots - 1)
+        elif (number_knots is None) and (knots is not None):
+            assert knots[0] == x_lower
+            assert knots[-1] == x_upper
+            step_sizes = np.diff(knots, 1)
+        else:
+            raise ValueError("Either 'number_knots' or 'knots' must be specified!")
+
+        return step_sizes
+
     def _converged_firms(self, tol):
         """Check whether solution component for firms has converged."""
         if abs(self.integrator.y[0] - self.model.firms.lower) <= tol:
@@ -717,7 +734,7 @@ class ShootingSolver(object):
         assert wage > 0.0, "Wage should be non-negative!"
         return wage
 
-    def solve(self, guess_firm_size_upper, tol=1e-6, number_knots=100,
+    def solve(self, guess_firm_size_upper, number_knots=None, knots=None, tol=1e-6,
               integrator='dopri5', message=False, **kwargs):
         """
         Solve for assortative matching equilibrium.
@@ -727,11 +744,14 @@ class ShootingSolver(object):
         guess_firm_size_upper : float
             Upper bound on the range of possible values for the initial
             condition for firm size.
-        tol : float (default=1e-6)
-            Convergence tolerance.
         number_knots : int (default=100)
             Number of knots to use in approximating the solution. The number of
             knots determines the step size used by the ODE solver.
+        knots : numpy.ndarray (default=None)
+            Grid of knots to use in approximating the solution. The knots array
+            should start at x_lower and end at x_upper (inclusive!)
+        tol : float (default=1e-6)
+            Convergence tolerance.
         integrator: string (default='dopri5')
             Integrator to use in appoximating the solution. Valid options are:
             'dopri5', 'lsoda', 'vode', 'dop853'. See `scipy.optimize.ode` for
@@ -744,16 +764,13 @@ class ShootingSolver(object):
 
         Notes
         -----
-        Rather than returning a result, this method modifies the `_solution`
+        * User must either specify the `number_knots` or the `knots` keyword
+        argument (not both).
+        * Rather than returning a result, this method modifies the `_solution`
         attribute of the `Solver` class. To final solution is stored as a
         `pandas.DataFrame` in the `solution` attribute.
 
         """
-
-        # relevant bounds
-        x_lower = self.model.workers.lower
-        x_upper = self.model.workers.upper
-
         # initialize integrator
         self.integrator.set_integrator(integrator, **kwargs)
 
@@ -763,9 +780,9 @@ class ShootingSolver(object):
         guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
         self._reset_solution(guess_firm_size)
 
-        # step size insures that never step beyond x_lower
-        step_size = (x_upper - x_lower) / (number_knots - 1)
-        assert step_size > 0
+        # get the array of step sizes
+        step_sizes = self._compute_step_sizes(number_knots, knots)
+        idx = 0
 
         while self.integrator.successful():
 
@@ -776,7 +793,9 @@ class ShootingSolver(object):
                     print(mesg)
                 break
 
-            self._update_solution(step_size)
+            step_size = step_sizes[idx]
+            assert step_size > 0
+            self._update_solution(step_sizes[idx])
 
             if self._converged_workers(tol) and self._converged_firms(tol):
                 self._validate_solution(self._solution)
@@ -790,6 +809,7 @@ class ShootingSolver(object):
                             "size is too low.")
                     print(mesg.format(guess_firm_size))
                 firm_size_lower = guess_firm_size
+                idx = 0  # don't forget to reset the index for step-sizes!
 
             elif self._converged_workers(tol) and self._exhausted_firms(tol):
                 if message:
@@ -797,6 +817,7 @@ class ShootingSolver(object):
                             "size was too low!")
                     print(mesg.format(guess_firm_size))
                 firm_size_lower = guess_firm_size
+                idx = 0  # don't forget to reset the index for step-sizes!
 
             elif self._converged_workers(tol) and (not self._exhausted_firms(tol)):
                 if message:
@@ -804,6 +825,7 @@ class ShootingSolver(object):
                             "firm size is too high!")
                     print(mesg.format(guess_firm_size))
                 firm_size_upper = guess_firm_size
+                idx = 0  # don't forget to reset the index for step-sizes!
 
             else:
                 continue
