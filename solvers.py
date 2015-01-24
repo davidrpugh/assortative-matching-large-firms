@@ -4,6 +4,8 @@ Contains the base class for the solver.py module.
 @author : David R. Pugh
 
 """
+from __future__ import division
+
 import numpy as np
 import pandas as pd
 from scipy import special

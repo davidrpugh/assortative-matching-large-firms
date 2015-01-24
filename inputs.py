@@ -2,7 +2,11 @@
 Classes for modeling heterogenous factors of production.
 
 @author : David R. Pugh
+<<<<<<< HEAD
 @date : 2014-01-24
+=======
+@date : 2015-01-24
+>>>>>>> master
 
 """
 from __future__ import division
