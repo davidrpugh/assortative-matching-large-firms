@@ -795,7 +795,7 @@ class ShootingSolver(object):
 
             step_size = step_sizes[idx]
             assert step_size > 0
-            self._update_solution(step_sizes[idx])
+            self._update_solution(step_size)
 
             if self._converged_workers(tol) and self._converged_firms(tol):
                 self._validate_solution(self._solution)
