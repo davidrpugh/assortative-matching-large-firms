@@ -22,6 +22,7 @@ class OrthogonalCollocation(solvers.Solver):
         self.kind = kind
 
         # initialize coefficients to linear polynomials
+        self.degree_mu, self.degree_theta = 1, 1
         self._coefficients_mu = self._initialize_coefficients_mu()
         self._coefficients_theta = self._intialize_coefficients_theta()
 
@@ -59,15 +60,50 @@ class OrthogonalCollocation(solvers.Solver):
     @property
     def _collocation_system(self):
         """System of non-linear equations whose solution is the coefficients."""
-        tup = (self.evaluate_residual_mu(self._collocation_nodes_mu),
+        tup = (self._boundary_conditions,
+               self.evaluate_residual_mu(self._collocation_nodes_mu),
                self.evaluate_residual_theta(self._collocation_nodes_theta),
-               self._boundary_conditions)
+               )
         return np.hstack(tup)
 
     @property
     def _domain(self):
         """Domain of approximation for the collocation solver."""
         return [self.model.workers.lower, self.model.workers.upper]
+
+    @property
+    def degree_mu(self):
+        r"""
+        Degree of the orthogonal polynomial used to approximate math:`\mu(x)`.
+
+        :getter: Return the current degree.
+        :setter: Set a new value for the degree.
+        :type: int
+
+        """
+        return self._degree_mu
+
+    @degree_mu.setter
+    def degree_mu(self, degree):
+        """Set a new value for the degree of approximating polynomial."""
+        self._degree_mu = self._validate_degree(degree)
+
+    @property
+    def degree_theta(self):
+        r"""
+        Degree of the orthogonal polynomial used to approximate math:`\theta(x)`.
+
+        :getter: Return the current degree.
+        :setter: Set a new value for the degree.
+        :type: int
+
+        """
+        return self._degree_theta
+
+    @degree_theta.setter
+    def degree_theta(self, degree):
+        """Set a new value for the degree of approximating polynomial."""
+        self._degree_theta = self._validate_degree(degree)
 
     @property
     def kind(self):
@@ -110,10 +146,10 @@ class OrthogonalCollocation(solvers.Solver):
         """
         return self.polynomial_factory(self._coefficients_theta, self.kind)
 
-    def _evaluate_collocation_residual(self, coefs, degree):
+    def _evaluate_collocation_residual(self, coefs):
         """Collocation residual should be zero for optimal coefficents."""
-        self._coefficients_mu = coefs[:degree+1]
-        self._coefficients_theta = coefs[degree+1:]
+        self._coefficients_mu = coefs[:self.degree_mu+1]
+        self._coefficients_theta = coefs[self.degree_mu+1:]
         return self._collocation_system
 
     def _initialize_coefficients_mu(self):
@@ -151,6 +187,18 @@ class OrthogonalCollocation(solvers.Solver):
         initial_coefs_theta = linear_theta.coef
 
         return initial_coefs_theta
+
+    @staticmethod
+    def _validate_degree(degree):
+        """Validate the degree_mu and degree_theta attributes."""
+        if not isinstance(degree, int):
+            mesg = ("Attribute must have type int, not {}.")
+            raise AttributeError(mesg.format(degree.__class__))
+        elif degree <= 0:
+            mesg = "Attribute must be strictly positive integer."
+            raise AttributeError(mesg)
+        else:
+            return degree
 
     @staticmethod
     def _validate_kind(kind):
@@ -215,14 +263,10 @@ class OrthogonalCollocation(solvers.Solver):
             raise ValueError(mesg)
         return polynomial
 
-    def solve(self, initial_coefs, degree, method='hybr', **kwargs):
+    def solve(self, initial_coefs, method='hybr', **kwargs):
         """Solve the system of non-linear equations."""
-        self._coefficients_mu = initial_coefs[:degree+1]
-        self._coefficients_theta = initial_coefs[degree+1:]
-
         result = optimize.root(self._evaluate_collocation_residual,
                                x0=initial_coefs,
-                               args=(degree,),
                                method=method,
                                **kwargs)
         return result
