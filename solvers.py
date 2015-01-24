@@ -464,6 +464,10 @@ class ShootingSolver(object):
             exhausted = False
         return exhausted
 
+    def _firm_size_close_to_zero(self, tol):
+        """Check whether firm size is close to zero."""
+        return abs(self.integrator.y[1]) < tol
+
     def _guess_firm_size_upper_too_low(self, bound, tol):
         """Check whether guess for upper bound for firm size is too low."""
         return abs(self.integrator.y[1] - bound) <= tol
@@ -815,7 +819,7 @@ class ShootingSolver(object):
 
             elif self._converged_workers(tol) and self._exhausted_firms(tol):
                 if message:
-                    mesg = ("Exhausted firms: Initial guess of {} for firm " +
+                    mesg = ("Exhausted firms: initial guess of {} for firm " +
                             "size was too low!")
                     print(mesg.format(guess_firm_size))
                 firm_size_lower = guess_firm_size
@@ -828,6 +832,13 @@ class ShootingSolver(object):
                     print(mesg.format(guess_firm_size))
                 firm_size_upper = guess_firm_size
                 idx = 0  # don't forget to reset the index for step-sizes!
+
+            elif self._firm_size_close_to_zero(tol):
+                if message:
+                    mesg = ("Firm size is zero: initial guess of {} for " +
+                            "firm size was too low!")
+                    print(mesg.format(guess_firm_size))
+                firm_size_lower = guess_firm_size
 
             else:
                 continue
