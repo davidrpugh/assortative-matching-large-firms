@@ -2,10 +2,11 @@
 Classes for modeling heterogenous factors of production.
 
 @author : David R. Pugh
-@date : 2014-11-11
+@date : 2014-01-24
 
 """
 from __future__ import division
+import collections
 
 import numpy as np
 from scipy import special
@@ -133,7 +134,8 @@ class Input(object):
     @params.setter
     def params(self, value):
         """Set a new parameter dictionary."""
-        self._params = self._validate_params(value)
+        valid_params = self._validate_params(value)
+        self._params = self._order_params(valid_params)
 
     @property
     def pdf(self):
@@ -179,6 +181,11 @@ class Input(object):
     def var(self, value):
         """Set a new symbolic variable."""
         self._var = self._validate_var(value)
+
+    @staticmethod
+    def _order_params(params):
+        """Cast a dictionary to an order dictionary."""
+        return collections.OrderedDict(sorted(params.items()))
 
     @staticmethod
     def _validate_cdf(cdf):
