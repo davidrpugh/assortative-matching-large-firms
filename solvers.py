@@ -418,6 +418,7 @@ class ShootingSolver(object):
 
     def _compute_step_sizes(self, number_knots, knots):
         """Computes an array of implied step sizes given some knot sequence."""
+        # expected bounds on the knots sequence
         x_lower = self.model.workers.lower
         x_upper = self.model.workers.upper
 
@@ -430,6 +431,9 @@ class ShootingSolver(object):
             step_sizes = np.diff(knots, 1)
         else:
             raise ValueError("Either 'number_knots' or 'knots' must be specified!")
+
+        if self.model.assortativity == 'positive':
+            step_sizes = step_sizes[::-1]
 
         return step_sizes
 
@@ -839,8 +843,10 @@ class ShootingSolver(object):
                             "firm size was too low!")
                     print(mesg.format(guess_firm_size))
                 firm_size_lower = guess_firm_size
+                idx = 0  # don't forget to reset the index for step-sizes!
 
             else:
+                idx += 1  # don't forget to increment the step-size index!
                 continue
 
             guess_firm_size = self._update_initial_guess(firm_size_lower,
