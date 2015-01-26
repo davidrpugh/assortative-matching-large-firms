@@ -373,7 +373,7 @@ class ShootingSolver(object):
             pass
         return df.set_index('x')
 
-    def _check_pam(self, step):
+    def _check_pam(self, step, tol):
         r"""
         Check necessary condition required for a positive assortative
         matching (PAM).
@@ -382,6 +382,9 @@ class ShootingSolver(object):
         ----------
         step : numpy.ndarray (shape=(5,))
             Step along a putative solution to the model.
+        tol : float
+            Difference between left and right hand sides of the PAM condition
+            must be less than the specified tolerance.
 
         Returns
         -------
@@ -397,10 +400,7 @@ class ShootingSolver(object):
         RHS = (self.evaluate_span_of_control(x, V) *
                self.evaluate_type_resource(x, V))
 
-        if np.isclose(LHS - RHS, 0):
-            check = True
-        else:
-            check = LHS > RHS
+        check = abs(LHS - RHS) / LHS < tol
 
         return check
 
@@ -418,21 +418,29 @@ class ShootingSolver(object):
 
     def _converged_firms(self, tol):
         """Check whether solution component for firms has converged."""
-        if abs(self.integrator.y[0] - self.model.firms.lower) <= tol:
+        mu = self.integrator.y[0]
+        y_lower = self.model.firms.lower
+
+        if abs(mu - y_lower) / mu <= tol:  # use relative values!
             converged = True
         else:
             converged = False
+
         return converged
 
     def _converged_workers(self, tol):
         """Check whether solution component for workers has converged."""
+        x = self.integrator.t
+        x_lower = self.model.workers.lower
+        x_upper = self.model.workers.upper
+
         if self.model.assortativity == 'positive':
-            if abs(self.integrator.t - self.model.workers.lower) <= tol:
+            if abs(x - x_lower) / x <= tol:  # use relative values!
                 converged = True
             else:
                 converged = False
         else:
-            if abs(self.integrator.t - self.model.workers.upper) <= tol:
+            if abs(x - x_upper) / x <= tol:  # use relative values!
                 converged = True
             else:
                 converged = False
@@ -441,19 +449,20 @@ class ShootingSolver(object):
 
     def _exhausted_firms(self, tol):
         """Check whether firms have been exhausted."""
-        if self.integrator.y[0] - self.model.firms.lower < -tol:
+        mu = self.integrator.y[0]
+        y_lower = self.model.firms.lower
+
+        if (mu - y_lower) / mu < -tol:  # use relative values!
             exhausted = True
         else:
             exhausted = False
-        return exhausted
 
-    def _firm_size_close_to_zero(self, tol):
-        """Check whether firm size is close to zero."""
-        return abs(self.integrator.y[1]) < tol
+        return exhausted
 
     def _guess_firm_size_upper_too_low(self, bound, tol):
         """Check whether guess for upper bound for firm size is too low."""
-        return abs(self.integrator.y[1] - bound) <= tol
+        theta = self.integrator.y[1]
+        return abs(theta - bound) / theta <= tol  # use relative values!
 
     def _reset_solution(self, firm_size):
         """
@@ -498,7 +507,7 @@ class ShootingSolver(object):
 
         """
         err_mesg = 'Upper and lower bounds are identical: check solver tols!'
-        assert (upper - lower) > np.finfo('float').eps, err_mesg
+        assert (upper - lower) / upper > np.finfo('float').eps, err_mesg
         guess = 0.5 * (lower + upper)
         return guess
 
@@ -536,9 +545,9 @@ class ShootingSolver(object):
         else:
             return model
 
-    def _validate_solution(self, solution):
+    def _validate_solution(self, solution, tol):
         """Validate a putative solution to the model."""
-        check = np.apply_along_axis(self._check_pam, axis=1, arr=solution)
+        check = np.apply_along_axis(self._check_pam, 1, solution, tol)
         if self.model.assortativity == 'positive' and (not check.all()):
             mesg = ("Approximated solution failed to satisfy required " +
                     "assortativity condition.")
@@ -775,17 +784,10 @@ class ShootingSolver(object):
 
         while self.integrator.successful():
 
-            if self._guess_firm_size_upper_too_low(guess_firm_size_upper, tol):
-                if message:
-                    mesg = ("Failure! Need to increase initial guess for " +
-                            "upper bound on firm size!")
-                    print(mesg)
-                break
-
             self._update_solution(step_size)
 
             if self._converged_workers(tol) and self._converged_firms(tol):
-                self._validate_solution(self._solution)
+                self._validate_solution(self._solution, tol)
                 mesg = "Success! All workers and firms are matched"
                 print(mesg)
                 break
@@ -811,16 +813,15 @@ class ShootingSolver(object):
                     print(mesg.format(guess_firm_size))
                 firm_size_upper = guess_firm_size
 
-            elif self._firm_size_close_to_zero(tol):
-                if message:
-                    mesg = ("Firm size is zero: initial guess of {} for " +
-                            "firm size was too low!")
-                    print(mesg.format(guess_firm_size))
-                firm_size_lower = guess_firm_size
-
             else:
                 continue
 
             guess_firm_size = self._update_initial_guess(firm_size_lower,
                                                          firm_size_upper)
+
             self._reset_solution(guess_firm_size)
+
+            # reset solution should not be too close to guess_firm_size_upper!
+            err_mesg = ("Failure! Need to increase initial guess for upper " +
+                        "bound on firm size!")
+            assert not self._guess_firm_size_upper_too_low(guess_firm_size_upper, tol), err_mesg
