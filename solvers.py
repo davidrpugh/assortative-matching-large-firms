@@ -400,7 +400,10 @@ class ShootingSolver(object):
         RHS = (self.evaluate_span_of_control(x, V) *
                self.evaluate_type_resource(x, V))
 
-        check = abs(LHS - RHS) / LHS < tol
+        if np.isclose(LHS - RHS, 0):
+            check = True
+        else:
+            check = LHS > RHS
 
         return check
 
