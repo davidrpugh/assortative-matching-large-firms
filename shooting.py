@@ -1,419 +1,300 @@
+"""
+Solves a model using forward shooting.
+
+@author : David R. Pugh
+
+"""
+import numpy as np
 from scipy import integrate
+import sympy as sym
 
-from traits.api import Float, HasPrivateTraits, Instance, Property, Str, Tuple
+import solvers
 
-import sandbox
+# represent endogenous variables mu and theta as a deferred vector
+V = sym.DeferredVector('V')
 
-class ShootingSolver(HasPrivateTraits):
-    """Class representing a simple shooting solver."""
 
-    _initial_condition = Property(Tuple)
+class ShootingSolver(solvers.Solver):
+    """Represent a Solver that implements a forward-shooting algorithm."""
 
-    _integrator = Property(Instance(integrate.ode), 
-                           depends_on=['_initial_condition', 'model'])
+    __numeric_jacobian = None
 
-    # need to validate this trait!
-    integrator = Str('dopri5')
-    
-    model = Instance(sandbox.Model)
+    __numeric_system = None
 
-    theta0 = Float(1.0)
+    __integrator = None
 
-    def _get__initial_condition(self):
-        """Initial condition for the solver."""
-        
-        x_lower = self.model.workers.lower_bound
-        x_upper = self.model.workers.upper_bound
-        y_upper = self.model.firms.upper_bound
+    @property
+    def _numeric_jacobian(self):
+        """Vectorized function for numerical evaluation of model Jacobian."""
+        if self.__numeric_jacobian is None:
+            self.__numeric_jacobian = self._lambdify(self._symbolic_jacobian)
+        return self.__numeric_jacobian
 
-        if self.model.matching =='pam':
-            init = (np.array([self.theta0, y_upper]), x_upper)
+    @property
+    def _numeric_system(self):
+        """Vectorized function for numerical evaluation of model system."""
+        if self.__numeric_system is None:
+            self.__numeric_system = self._lambdify(self._symbolic_system)
+        return self.__numeric_system
+
+    @property
+    def _symbolic_equations(self):
+        """List of symbolic expressions for right-hand side of ODE system."""
+        return [self.model.matching.mu_prime, self.model.matching.theta_prime]
+
+    @property
+    def _symbolic_jacobian(self):
+        """Symbolic Jacobian matrix for the ODE system."""
+        return self._symbolic_system.jacobian([V[0], V[1]])
+
+    @property
+    def _symbolic_system(self):
+        """Symbolic matrix defining the right-hand side of ODE system."""
+        system = sym.Matrix(self._symbolic_equations)
+        return system.subs(self._symbolic_change_of_vars)
+
+    @property
+    def integrator(self):
+        """
+        Integrator used to solve the ODE system given some initial condition.
+
+        :getter: Return the current integrator.
+        :type: scipy.integrate.ode
+
+        """
+        if self.__integrator is None:
+            self.__integrator = integrate.ode(f=self.evaluate_rhs,
+                                              jac=self.evaluate_jacobian)
+        return self.__integrator
+
+    def _clear_cache(self):
+        """Clear cached functions used for numerical evaluation."""
+        super(ShootingSolver, self)._clear_cache()
+        self.__numeric_jacobian = None
+        self.__numeric_system = None
+        self.__integrator = None
+
+    def _converged_firms(self, tol):
+        """Check whether solution component for firms has converged."""
+        mu = self.integrator.y[0]
+        y_lower = self.model.firms.lower
+
+        if abs(mu - y_lower) / mu <= tol:  # use relative values!
+            converged = True
         else:
-            init = (np.array([self.theta0, y_upper]), x_lower)
+            converged = False
 
-        return init
+        return converged
 
-    def _get__integrate(self):
-        pass
+    def _converged_workers(self, tol):
+        """Check whether solution component for workers has converged."""
+        x = self.integrator.t
+        x_lower = self.model.workers.lower
+        x_upper = self.model.workers.upper
 
-    def _solve_pam(self, theta0, tol=1e-2, N=1e3, deg=1, mesg=False, 
-                   max_iter=1e6, integrator='dopri5', **kwargs):
-        """Uses a forward shooting algorithm to solve for a PAM euilibrium."""
-
-        # range of worker types 
-        xl = self.model.workers.lower_bound
-        xu = self.model.workers.upper_bound
-            
-        # range of worker types 
-        yl = self.model.firms.lower_bound 
-        yu = self.model.firms.upper_bound
-    
-        # initial condition for the solver 
-        init = np.array([theta0, yu])
-
-        # compute the optimal step size
-        step_size = (xu - xl) / (N - 1)
-            
-        # check that initial wages and profits are strictly positive
-        if self.model.get_wages(xu, init) <= 0.0:
-            raise Exception, ('Invalid initial condition! Most skilled worker' +
-                              ' must earn strictly positive wage!')
-
-        if self.model.get_profits(xu, init) <= 0.0:
-            raise Exception, ('Invalid initial condition! Most productive' +
-                              ' firm must earn strictly positive profits!')
-
-        # check that PAM holds for initial condition
-        if not self.model.check_pam(xu, init):
-            raise Exception, ('Invalid initial condition! Necessary condition' +
-                              ' for PAM fails!')
-            
-        ########## ODE solver ##########
-    
-        # initialize solver for PAM
-        solver = integrate.ode(self.system)
-        solver.set_integrator(integrator, **kwargs)
-        solver.set_initial_value(init, xu)
-                
-        ##### Forward shooting algorithm #####
-    
-        # initialize putative equilibrium path
-        init_wages   = self.model.get_wages(xu, init)
-        init_profits = self.model.get_profits(xu, init)
-        path         = np.hstack((xu, init, init_wages, init_profits)) 
-
-        # initialize a counter
-        num_iter = 0
-
-        # initial feasible range for theta0 
-        theta_h = 2.0 * theta0
-        theta_l = 0
-        
-        while num_iter < max_iter:
-            num_iter += 1
-            if mesg == True and num_iter % 1000 == 0:
-                print 'Completed', num_iter, 'iterations.' 
-            
-            # Walk the 2D system forward one step
-            solver.integrate(solver.t - step_size)
-        
-            # compute profits and wages along putative equilibrium
-            tmp_wages   = self.model.get_wages(solver.t, solver.y)
-            tmp_profits = self.model.get_profits(solver.t, solver.y)
-            tmp_step    = np.hstack((solver.t, solver.y, tmp_wages, tmp_profits))
-            path        = np.vstack((path, tmp_step))
-
-            ##### At each step, need to... #####
-
-            # check that necessary condition for PAM holds
-            if not self.model.check_pam(solver.t, solver.y):
-                print 'Necessary condition for PAM failed!'
-                print 'Most recent step:', path[-1,:]
-                break
-
-            # check that firm size is non-negative!
-            if solver.y[0] <= tol:
-
-                # theta0 too low  
-                theta_l = init[0]
-                init[0] = (theta_h + theta_l) / 2
-                if mesg == True:
-                    print 'Negative firm size! Guess for theta0 was too low!'
-                    print 'Most recent step:', path[-1,:]
-                    print 'New initial condition is', init[0]
-                    print ''
-                solver.set_initial_value(init, xu)
-                
-                # reset the putative equilibrium path
-                init_wages = self.model.get_wages(xu, init)
-                init_profits = self.model.get_profits(xu, init)
-                path = np.hstack((xu, init, init_wages, init_profits))
-
-            # check workers...
-            elif solver.t <= xl:
-                
-                # ...check for equilibrium with all workers/firms matched! 
-                if (np.abs(solver.t - xl) < tol and 
-                    np.abs(solver.y[1] - yl) < tol):
-                    if mesg == True:
-                        print 'Sucess! All workers matched with all firms.'
-                        print 'Most recent step:', path[-1,:]
-                    break
-
-                # ...check for equilibrium with excess supply of firms!
-                elif np.abs(solver.t - xl) < tol and np.abs(tmp_profits) < tol:
-                    if mesg == True:
-                        print 'Found equilibrium with excess supply of firms!'
-                        print 'Most recent step:', path[-1,:]
-                    break
-
-                # ...check if exhausted all firms (i.e., theta0 too low!)
-                elif (solver.y[1] - yl) < -tol:
-                    theta_l = init[0]
-                    init[0] = (theta_h + theta_l) / 2
-                    if mesg == True:
-                        print ('You have run out of firms! Guess for theta0' + 
-                               ' was too low!')
-                        print 'Most recent step:', path[-1,:]
-                        print 'New initial condition is', init[0]
-                        print ''
-                    solver.set_initial_value(init, xu)
-                
-                    # reset the putative equilibrium path
-                    init_wages = self.model.get_wages(xu, init)
-                    init_profits = self.model.get_profits(xu, init)
-                    path = np.hstack((xu, init, init_wages, init_profits))
-                
-                # ...else, theta0 too high!
-                else:
-                    theta_h = init[0]
-                    init[0] = (theta_h + theta_l) / 2
-                    if mesg == True:
-                        print('You have run out of workers, but there are ' + 
-                              'still firms around and profits are non-zero.' +
-                              ' Guess for theta0 was too high!') 
-                        print 'Most recent step:', path[-1,:]
-                        print 'New initial condition is', init[0]
-                        print ''
-                    solver.set_initial_value(init, xu)
-                
-                    # reset the putative equilibrium path
-                    init_wages = self.model.get_wages(xu, init)
-                    init_profits = self.model.get_profits(xu, init)
-                    path = np.hstack((xu, init, init_wages, init_profits))
-                        
-            # check firms...
-            elif solver.y[1] <= yl:
-                
-                # ...check for equilibrium with all workers/firms matched!
-                if (np.abs(solver.t - xl) < tol and 
-                    np.abs(solver.y[1] - yl) < tol):
-                    if mesg == True:
-                        print 'Sucess! All workers matched with all firms.'
-                        print 'Most recent step:', path[-1,:]
-                    break
-
-                # ...check for equilibrium with excess supply of workers!
-                elif (np.abs(tmp_wages) < tol and 
-                        np.abs(solver.y[1] - yl) < tol):
-                    if mesg == True:
-                        print 'Found equilibrium with excess supply of workers!'
-                        print 'Most recent step:', path[-1,:]
-                    break
-
-                # ...check if exhausted all workers (i.e., theta0 too high!)
-                elif (solver.t - xl) < -tol:
-                    theta_h = init[0]
-                    init[0] = (theta_h + theta_l) / 2
-                    if mesg == True:
-                        print ('You have run out of workers! Guess for' +
-                               ' theta0 was too high!') 
-                        print 'Most recent step:', path[-1,:]
-                        print 'New initial condition is', init[0]
-                        print ''
-                    solver.set_initial_value(init, xu)
-                
-                    # reset the putative equilibrium path
-                    init_wages = self.model.get_wages(xu, init)
-                    init_profits = self.model.get_profits(xu, init)
-                    path = np.hstack((xu, init, init_wages, init_profits))
-                
-                # ...else, theta0 too low!
-                else:
-                    theta_l = init[0]
-                    init[0] = (theta_h + theta_l) / 2
-                    if mesg == True:
-                        print('You have run out of firms, but there are ' + 
-                              'still workers around and wages are non-zero.' +
-                              ' Guess for theta0 was too low!')
-                        print 'Most recent step:', path[-1,:]
-                        print 'New initial condition is', init[0]
-                        print ''
-                    solver.set_initial_value(init, xu)
-                
-                    # reset the putative equilibrium path
-                    init_wages = self.model.get_wages(xu, init)
-                    init_profits = self.model.get_profits(xu, init)
-                    path = np.hstack((xu, init, init_wages, init_profits))
-            
-            # check that wages are non-negative...
-            elif tmp_wages <= 0:  
-
-                # check if exhausted all firms and wages are zeroish...
-                if np.abs(tmp_wages) < tol and np.abs(solver.y[1] - yl) < tol:
-                    if mesg == True:
-                        print('Found equilibrium with excess supply of workers' + 
-                              '...but, you should not be reading this!')
-                        print 'Most recent step:', path[-1,:]
-                    break
-
-                # theta0 too high!  
-                else:
-                    theta_h = init[0]
-                    init[0] = (theta_h + theta_l) / 2
-                    if mesg == True:
-                        print('There are still workers and firms around, ' + 
-                              'but wages are zero! Guess for theta0 was too' +
-                              'high!')
-                        print 'Most recent step:', path[-1,:]
-                        print 'New initial condition is', init[0]
-                        print ''
-                    solver.set_initial_value(init, xu)
-                
-                    # reset the putative equilibrium path
-                    init_wages = self.model.get_wages(xu, init)
-                    init_profits = self.model.get_profits(xu, init)
-                    path = np.hstack((xu, init, init_wages, init_profits))
-
-            # check that profits are non-negative...
-            elif tmp_profits <= 0:
-
-                # check if exhausted all workers and profits are zeroish
-                if np.abs(tmp_profits) < tol and np.abs(solver.t - xl) < tol:
-                    if mesg == True:
-                        print('Found equilibrium with excess supply of firms' + 
-                              '...but, you should not be reading this!')
-                    break
-
-                # theta0 too low!
-                else:
-                    theta_l = init[0]
-                    init[0] = (theta_h + theta_l) / 2
-                    if mesg == True:
-                        print('There are still workers and firms around, ' + 
-                              'but profits are zero!')
-                        print 'Most recent step:', path[-1,:]
-                        print 'New initial condition is', init[0]
-                        print ''
-                    solver.set_initial_value(init, xu)
-                
-                    # reset the putative equilibrium path
-                    init_wages = self.model.get_wages(xu, init)
-                    init_profits = self.model.get_profits(xu, init)
-                    path = np.hstack((xu, init, init_wages, init_profits))
-                    
-            # if all of the above are satisfied, then continue!
+        if self.model.assortativity == 'positive':
+            if abs(x - x_lower) / x <= tol:  # use relative values!
+                converged = True
             else:
-                continue     
-            
-            # check whether max_iter condition has been reached
-            if num_iter == int(max_iter):
-                print "Reached maximum iterations w/o finding a solution."
-                self.success = False
-                break
-                  
-        # modify the solver's path attribute (reverse order!)
-        self.path = path[::-1]  
-        
-        if self.success == True:
-            
-            # approximate equilibrium firm size and matching functions
-            theta = self.bspline(self.path[:,0], self.path[:,1], deg)
-            mu    = self.bspline(self.path[:,0], self.path[:,2], deg)
-            
-            # approximate equilibrium wages and profits
-            w  = lambda x: self.model.get_wages(x, [theta(x), mu(x)])
-            pi = lambda x: self.model.get_profits(x, [theta(x), mu(x)])
-            
-            # modify the equilibrium attribute
-            self.model.equilibrium['theta']   = theta
-            self.model.equilibrium['mu']      = mu
-            self.model.equilibrium['wages']   = w
-            self.model.equilibrium['profits'] = pi 
-
-
-    def _solve_nam(self, theta0, tol=1e-2, N=1e3, deg=1, mesg=False, 
-                   max_iter=1e6, integrator='dopri5', **kwargs):
-        raise NotImplementedError
-
-    def solve(self, theta0, tol=1e-2, N=1e3, deg=1, mesg=False, 
-              max_iter=1e6, integrator='dopri5', **kwargs):
-        """
-        Solve for the equilibrium of the Eeckhout and Kircher (2013) model 
-        using a Forward Shooting algorithm. For details on the forward shooting 
-        algorithm see Judd (1992) p. 357.
-
-        Arguments:
-
-        theta0:    Initial guess for the size of the most productive firm.
-        
-        tol:        How close to the shooting target is "close enough."
-        
-        N:          Number of points of the solution path to compute.
-        
-        deg:        Degree of B-spline approximation to use. Must satisfy
-                    1 <= deg <= 5.
-                    
-        matching:   One of either 'pam' or 'nam' depending on whether or not you
-                    want an equilibrium with positive or negative assortative 
-                    matching.
-        
-        mesg:       Do you want to print messages indicating progress
-                    towards convergence? Default is False.
-        
-        integrator: Solution method for ODE solver.  Must be one of 'lsoda', 
-                    'vode', zvode', 'dopri5', 'dop853'.  See scipy.integrate.ode 
-                    for details (including references for algorithms).
-        
-        **kwargs:   Additional arguments to pass to the ODE solver.  
-                    See scipy.integrate.ode for details.
-        
-        """
-        # which or either positive or negative assortative matching?
-        if self.model.matching == 'pam':
-            self._shoot_pam(theta0, tol, N, deg, mesg, max_iter, integrator, 
-                            **kwargs)
-
+                converged = False
         else:
-            self._shoot_nam(theta0, tol, N, deg, mesg, max_iter, integrator, 
-                            **kwargs)
-        
-    
+            if abs(x - x_upper) / x <= tol:  # use relative values!
+                converged = True
+            else:
+                converged = False
 
+        return converged
 
-if __name__ == '__main__':
-    import numpy as np
-    import sympy as sp
+    def _exhausted_firms(self, tol):
+        """Check whether firms have been exhausted."""
+        mu = self.integrator.y[0]
+        y_lower = self.model.firms.lower
 
-    from inputs import Input
-    from sandbox import Model
+        if (mu - y_lower) / mu < -tol:  # use relative values!
+            exhausted = True
+        else:
+            exhausted = False
 
-    params = {'nu':0.89, 'kappa':1.0, 'gamma':0.54, 'rho':0.24, 'A':1.0}
+        return exhausted
 
-    sp.var('A, kappa, nu, x, rho, y, l, gamma, r')
-    F = r * A * kappa * (nu * x**rho + (1 - nu) * (y * (l / r))**rho)**(gamma / rho)
+    def _guess_firm_size_upper_too_low(self, bound, tol):
+        """Check whether guess for upper bound for firm size is too low."""
+        theta = self.integrator.y[1]
+        return abs(theta - bound) / theta <= tol  # use relative values!
 
-    # suppose worker skill is log normal
-    sp.var('x, mu, sigma')
-    skill_cdf = 0.5 + 0.5 * sp.erf((sp.log(x) - mu) / sp.sqrt(2 * sigma**2))
-    worker_params = {'mu':0.0, 'sigma':1}
-    x_lower, x_upper, x_measure = 1e-3, 5e1, 0.025
-    
-    workers = Input(distribution=skill_cdf,
-                    lower_bound=x_lower,
-                    params=worker_params,
-                    upper_bound=x_upper,
-                   )
+    def _reset_solution(self, firm_size):
+        """Reset initial condition and re-initialze solution."""
+        x_lower, x_upper = self.model.workers.lower, self.model.workers.upper
+        y_upper = self.model.firms.upper
+        initial_V = np.array([y_upper, firm_size])
 
-    # suppose firm productivity is log normal
-    sp.var('x, mu, sigma')
-    productivity_cdf = 0.5 + 0.5 * sp.erf((sp.log(x) - mu) / sp.sqrt(2 * sigma**2))
-    firm_params = {'mu':0.0, 'sigma':1}
-    y_lower, y_upper, y_measure = 1e-3, 5e1, 0.025
-    
-    firms = Input(distribution=productivity_cdf,
-                  lower_bound=x_lower,
-                  params=firm_params,
-                  upper_bound=x_upper,
-                  )
+        if self.model.assortativity == 'positive':
+            self.integrator.set_initial_value(initial_V, x_upper)
+            wage = self.evaluate_wage(x_upper, initial_V)
+            profit = self.evaluate_profit(x_upper, initial_V)
+            self._solution = np.hstack((x_upper, initial_V, wage, profit))
+        else:
+            self.integrator.set_initial_value(initial_V, x_lower)
+            wage = self.evaluate_wage(x_lower, initial_V)
+            profit = self.evaluate_profit(x_lower, initial_V)
+            self._solution = np.hstack((x_lower, initial_V, wage, profit))
 
-    # create an instance of the Model class
-    model = Model(firms=firms,
-                  matching='PAM',
-                  output=F,
-                  params=params,
-                  workers=workers
-                  )
+    def _update_initial_guess(self, lower, upper):
+        """Use bisection method to arrive at new initial guess."""
+        err_mesg = 'Upper and lower bounds are identical: check solver tols!'
+        assert (upper - lower) / upper > np.finfo('float').eps, err_mesg
+        guess = 0.5 * (lower + upper)
+        return guess
 
-    shooting = ShootingSolver(integrator='dopri5',
-                              model=model)
+    def _update_solution(self, step_size):
+        """Update the solution array after an integration step."""
+        if self.model.assortativity == 'positive':
+            self.integrator.integrate(self.integrator.t - step_size)
+            x, V = self.integrator.t, self.integrator.y
+        else:
+            self.integrator.integrate(self.integrator.t + step_size)
+            x, V = self.integrator.t, self.integrator.y
+
+        assert V[1] > 0.0, "Firm size should be non-negative!"
+
+        # update the putative equilibrium solution
+        wage = self.evaluate_wage(x, V)
+        profit = self.evaluate_profit(x, V)
+        step = np.hstack((x, V, wage, profit))
+        self._solution = np.vstack((self._solution, step))
+
+    def evaluate_jacobian(self, x, V):
+        r"""
+        Numerically evaluate model Jacobian.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        jac : numpy.array (shape=(2,2))
+            Jacobian matrix of partial derivatives.
+
+        """
+        jac = self._numeric_jacobian(x, V, *self.model.params.values())
+        return jac
+
+    def evaluate_rhs(self, x, V):
+        r"""
+        Numerically evaluate right-hand side of the ODE system.
+
+        Parameters
+        ----------
+        x : float
+            Value for worker skill (i.e., the independent variable).
+        V : numpy.array (shape=(2,))
+            Array of values for the dependent variables with ordering:
+            :math:`[\mu, \theta]`.
+
+        Returns
+        -------
+        rhs : numpy.array (shape=(2,))
+            Right hand side of the system of ODEs.
+
+        """
+        rhs = self._numeric_system(x, V, *self.model.params.values()).ravel()
+        return rhs
+
+    def solve(self, guess_firm_size_upper, tol=1e-6, number_knots=100,
+              integrator='dopri5', message=False, **kwargs):
+        """
+        Solve for assortative matching equilibrium.
+
+        Parameters
+        ----------
+        guess_firm_size_upper : float
+            Upper bound on the range of possible values for the initial
+            condition for firm size.
+        tol : float (default=1e-6)
+            Convergence tolerance.
+        number_knots : int (default=100)
+            Number of knots to use in approximating the solution. The number of
+            knots determines the step size used by the ODE solver.
+        integrator: string (default='dopri5')
+            Integrator to use in appoximating the solution. Valid options are:
+            'dopri5', 'lsoda', 'vode', 'dop853'. See `scipy.optimize.ode` for
+            complete description of each solver.
+        message : boolean (default=False)
+            Flag indicating whether or not to print progress messages.
+        **kwargs : dict
+            Dictionary of optional, solver specific, keyword arguments. setter
+            `scipy.optimize.ode` for details.
+
+        Notes
+        -----
+        Rather than returning a result, this method modifies the `_solution`
+        attribute of the `Solver` class. To final solution is stored in the
+        `solution`attribute as a `pandas.DataFrame`.
+
+        """
+
+        # relevant bounds
+        x_lower = self.model.workers.lower
+        x_upper = self.model.workers.upper
+
+        # initialize integrator
+        self.integrator.set_integrator(integrator, **kwargs)
+
+        # initialize the solution
+        firm_size_lower = 0.0
+        firm_size_upper = guess_firm_size_upper
+        guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
+        self._reset_solution(guess_firm_size)
+
+        # step size insures that never step beyond x_lower
+        step_size = (x_upper - x_lower) / (number_knots - 1)
+        assert step_size > 0
+
+        while self.integrator.successful():
+
+            self._update_solution(step_size)
+
+            if self._converged_workers(tol) and self._converged_firms(tol):
+                self._validate_solution(self._solution, tol)
+                mesg = "Success! All workers and firms are matched"
+                print(mesg)
+                break
+
+            elif (not self._converged_workers(tol)) and self._exhausted_firms(tol):
+                if message:
+                    mesg = ("Exhausted firms: initial guess of {} for firm " +
+                            "size is too low.")
+                    print(mesg.format(guess_firm_size))
+                firm_size_lower = guess_firm_size
+
+            elif self._converged_workers(tol) and self._exhausted_firms(tol):
+                if message:
+                    mesg = ("Exhausted firms: initial guess of {} for firm " +
+                            "size was too low!")
+                    print(mesg.format(guess_firm_size))
+                firm_size_lower = guess_firm_size
+
+            elif self._converged_workers(tol) and (not self._exhausted_firms(tol)):
+                if message:
+                    mesg = ("Exhausted workers: initial guess of {} for " +
+                            "firm size is too high!")
+                    print(mesg.format(guess_firm_size))
+                firm_size_upper = guess_firm_size
+
+            else:
+                continue
+
+            guess_firm_size = self._update_initial_guess(firm_size_lower,
+                                                         firm_size_upper)
+
+            self._reset_solution(guess_firm_size)
+
+            # reset solution should not be too close to guess_firm_size_upper!
+            err_mesg = ("Failure! Need to increase initial guess for upper " +
+                        "bound on firm size!")
+            assert not self._guess_firm_size_upper_too_low(guess_firm_size_upper, tol), err_mesg

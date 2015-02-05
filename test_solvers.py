@@ -12,7 +12,7 @@ import sympy as sym
 
 import inputs
 import models
-import solvers
+import shooting
 
 
 class MultiplicativeSeparabilityCase(unittest.TestCase):
@@ -62,7 +62,7 @@ class MultiplicativeSeparabilityCase(unittest.TestCase):
                                   production=F,
                                   params=F_params)
 
-        self.solver = solvers.ShootingSolver(model=self.model)
+        self.solver = shooting.ShootingSolver(model=self.model)
 
     def test_solve(self):
         """Test trivial example for solver."""
