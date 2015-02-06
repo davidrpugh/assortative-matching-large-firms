@@ -5,7 +5,8 @@ Solves a model using forward shooting.
 
 """
 import numpy as np
-from scipy import integrate
+import pandas as pd
+from quantecon import ivp
 import sympy as sym
 
 import solvers
@@ -21,7 +22,7 @@ class ShootingSolver(solvers.Solver):
 
     __numeric_system = None
 
-    __integrator = None
+    __ivp = None
 
     @property
     def _numeric_jacobian(self):
@@ -54,29 +55,58 @@ class ShootingSolver(solvers.Solver):
         return system.subs(self._symbolic_change_of_vars)
 
     @property
-    def integrator(self):
-        """
-        Integrator used to solve the ODE system given some initial condition.
+    def ivp(self):
+        r"""
+        An instance of the `quantecon.ivp.IVP` class representing the model as
+        an initial value problem (IVP).
 
-        :getter: Return the current integrator.
-        :type: scipy.integrate.ode
+        :getter: Return an instance of the `ivp.IVP` class.
+        :type: ivp.IVP
 
         """
-        if self.__integrator is None:
-            self.__integrator = integrate.ode(f=self.evaluate_rhs,
-                                              jac=self.evaluate_jacobian)
-        return self.__integrator
+        if self.__ivp is None:
+            self.__ivp = ivp.IVP(self.evaluate_rhs, self.evaluate_jacobian)
+        return self.__ivp
+
+    @property
+    def residuals(self):
+        """
+        residuals
+
+        :getter: Return the current residuals.
+        :type: pandas.DataFrame
+
+        """
+        # compute residuals array
+        x_lower = self.model.workers.lower
+        x_upper = self.model.workers.upper
+        T = self._solution.shape[0]
+        ti = np.linspace(x_lower, x_upper, 10 * T)  # use 10x as many knots!
+
+        # need to reverse the direction of the _solution array
+        if self.model.assortativity == 'positive':
+            traj = self._solution[::-1]
+        else:
+            traj = self._solution
+        resids_arr = self.ivp.compute_residual(traj[:, :3], ti, k=5, ext=0)
+
+        # convert to a data frame
+        resids_arr[:, 0] = ti
+        col_names = ['x', 'firm productivity', 'firm size']
+        df = pd.DataFrame(resids_arr, columns=col_names)
+
+        return df.set_index('x')
 
     def _clear_cache(self):
         """Clear cached functions used for numerical evaluation."""
         super(ShootingSolver, self)._clear_cache()
         self.__numeric_jacobian = None
         self.__numeric_system = None
-        self.__integrator = None
+        self.__ivp = None
 
     def _converged_firms(self, tol):
         """Check whether solution component for firms has converged."""
-        mu = self.integrator.y[0]
+        mu = self.ivp.y[0]
         y_lower = self.model.firms.lower
 
         if abs(mu - y_lower) / mu <= tol:  # use relative values!
@@ -88,7 +118,7 @@ class ShootingSolver(solvers.Solver):
 
     def _converged_workers(self, tol):
         """Check whether solution component for workers has converged."""
-        x = self.integrator.t
+        x = self.ivp.t
         x_lower = self.model.workers.lower
         x_upper = self.model.workers.upper
 
@@ -107,7 +137,7 @@ class ShootingSolver(solvers.Solver):
 
     def _exhausted_firms(self, tol):
         """Check whether firms have been exhausted."""
-        mu = self.integrator.y[0]
+        mu = self.ivp.y[0]
         y_lower = self.model.firms.lower
 
         if (mu - y_lower) / mu < -tol:  # use relative values!
@@ -119,7 +149,7 @@ class ShootingSolver(solvers.Solver):
 
     def _guess_firm_size_upper_too_low(self, bound, tol):
         """Check whether guess for upper bound for firm size is too low."""
-        theta = self.integrator.y[1]
+        theta = self.ivp.y[1]
         return abs(theta - bound) / theta <= tol  # use relative values!
 
     def _reset_solution(self, firm_size):
@@ -129,12 +159,12 @@ class ShootingSolver(solvers.Solver):
         initial_V = np.array([y_upper, firm_size])
 
         if self.model.assortativity == 'positive':
-            self.integrator.set_initial_value(initial_V, x_upper)
+            self.ivp.set_initial_value(initial_V, x_upper)
             wage = self.evaluate_wage(x_upper, initial_V)
             profit = self.evaluate_profit(x_upper, initial_V)
             self._solution = np.hstack((x_upper, initial_V, wage, profit))
         else:
-            self.integrator.set_initial_value(initial_V, x_lower)
+            self.ivp.set_initial_value(initial_V, x_lower)
             wage = self.evaluate_wage(x_lower, initial_V)
             profit = self.evaluate_profit(x_lower, initial_V)
             self._solution = np.hstack((x_lower, initial_V, wage, profit))
@@ -149,11 +179,11 @@ class ShootingSolver(solvers.Solver):
     def _update_solution(self, step_size):
         """Update the solution array after an integration step."""
         if self.model.assortativity == 'positive':
-            self.integrator.integrate(self.integrator.t - step_size)
-            x, V = self.integrator.t, self.integrator.y
+            self.ivp.integrate(self.ivp.t - step_size)
+            x, V = self.ivp.t, self.ivp.y
         else:
-            self.integrator.integrate(self.integrator.t + step_size)
-            x, V = self.integrator.t, self.integrator.y
+            self.ivp.integrate(self.ivp.t + step_size)
+            x, V = self.ivp.t, self.ivp.y
 
         assert V[1] > 0.0, "Firm size should be non-negative!"
 
@@ -243,7 +273,7 @@ class ShootingSolver(solvers.Solver):
         x_upper = self.model.workers.upper
 
         # initialize integrator
-        self.integrator.set_integrator(integrator, **kwargs)
+        self.ivp.set_integrator(integrator, **kwargs)
 
         # initialize the solution
         firm_size_lower = 0.0
@@ -255,7 +285,7 @@ class ShootingSolver(solvers.Solver):
         step_size = (x_upper - x_lower) / (number_knots - 1)
         assert step_size > 0
 
-        while self.integrator.successful():
+        while self.ivp.successful():
 
             self._update_solution(step_size)
 
