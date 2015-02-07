@@ -55,6 +55,32 @@ class ShootingSolver(solvers.Solver):
         return system.subs(self._symbolic_change_of_vars)
 
     @property
+    def interpolated_solution(self):
+        """
+        Interpolated solution to the model
+
+        Notes
+        -----
+        The solution array is interpolated using 5-order parameteric, B-spline
+        interpolation (with no extrapolation).
+
+        """
+        # need to reverse the direction of the _solution array
+        if self.model.assortativity == 'positive':
+            traj = self._solution[::-1]
+        else:
+            traj = self._solution
+
+        xi = np.linspace(traj[0, 0], traj[-1, 0], 10 * traj.shape[0])
+        interp_soln = self.ivp.interpolate(traj, xi, k=5, ext=2)
+
+        # convert to a data frame
+        col_names = ['x', r'$\mu(x)$', r'$\theta(x)$', '$w(x)$', r'$\pi(x)$']
+        df = pd.DataFrame(interp_soln, columns=col_names)
+
+        return df.set_index('x')
+
+    @property
     def ivp(self):
         r"""
         An instance of the `quantecon.ivp.IVP` class representing the model as
@@ -71,28 +97,29 @@ class ShootingSolver(solvers.Solver):
     @property
     def residuals(self):
         """
-        residuals
+        Model residuals
 
         :getter: Return the current residuals.
         :type: pandas.DataFrame
 
-        """
-        # compute residuals array
-        x_lower = self.model.workers.lower
-        x_upper = self.model.workers.upper
-        T = self._solution.shape[0]
-        ti = np.linspace(x_lower, x_upper, 10 * T)  # use 10x as many knots!
+        Notes
+        -----
+        Prior to computing the residuals, the finite-difference approximation
+        of the solution is approximated using 5-order, B-spline interpolation.
 
-        # need to reverse the direction of the _solution array
+        """
         if self.model.assortativity == 'positive':
             traj = self._solution[::-1]
         else:
             traj = self._solution
-        resids_arr = self.ivp.compute_residual(traj[:, :3], ti, k=5, ext=0)
+
+        # compute the residuals
+        xi = np.linspace(traj[0, 0], traj[-1, 0], 10 * traj.shape[0])
+        resids_arr = self.ivp.compute_residual(traj[:, :3], xi, k=5, ext=2)
 
         # convert to a data frame
-        resids_arr[:, 0] = ti
-        col_names = ['x', 'firm productivity', 'firm size']
+        resids_arr[:, 0] = xi
+        col_names = ['x', r'$\hat{\mu}(x)$', r'$\hat{\theta}(x)$']
         df = pd.DataFrame(resids_arr, columns=col_names)
 
         return df.set_index('x')

@@ -199,7 +199,7 @@ class Solver(object):
         :type: pandas.DataFrame
 
         """
-        col_names = ['x', 'firm productivity', 'firm size', 'wage', 'profit']
+        col_names = ['x', r'$\mu(x)$', r'$\theta(x)$', '$w(x)$', r'$\pi(x)$']
         df = pd.DataFrame(self._solution, columns=col_names)
         if self.model.assortativity == 'positive':
             df.sort('x', inplace=True)
