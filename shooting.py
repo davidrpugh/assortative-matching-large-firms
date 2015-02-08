@@ -32,6 +32,25 @@ class ShootingSolver(solvers.Solver):
         return self.__numeric_jacobian
 
     @property
+    def _raw_residuals(self):
+        """Raw model residuals stored in a `pandas.DataFrame`."""
+        if self.model.assortativity == 'positive':
+            traj = self._solution[::-1]
+        else:
+            traj = self._solution
+
+        # compute the residuals
+        xi = np.linspace(traj[0, 0], traj[-1, 0], 10 * traj.shape[0])
+        resids_arr = self.ivp.compute_residual(traj[:, :3], xi, k=5, ext=2)
+
+        # convert to a data frame
+        resids_arr[:, 0] = xi
+        col_names = ['x', r'$\hat{\mu}(x)$', r'$\hat{\theta}(x)$']
+        df = pd.DataFrame(resids_arr, columns=col_names)
+
+        return df.set_index('x')
+
+    @property
     def _numeric_system(self):
         """Vectorized function for numerical evaluation of model system."""
         if self.__numeric_system is None:
@@ -75,7 +94,7 @@ class ShootingSolver(solvers.Solver):
         interp_soln = self.ivp.interpolate(traj, xi, k=5, ext=2)
 
         # convert to a data frame
-        col_names = ['x', r'$\mu(x)$', r'$\theta(x)$', '$w(x)$', r'$\pi(x)$']
+        col_names = ['x', r'$\hat{\mu}(x)$', r'$\hat{\theta}(x)$', '$\hat{w}(x)$', r'$\hat{\pi}(x)$']
         df = pd.DataFrame(interp_soln, columns=col_names)
 
         return df.set_index('x')
@@ -96,33 +115,16 @@ class ShootingSolver(solvers.Solver):
 
     @property
     def residuals(self):
-        """
-        Model residuals
+        r"""
+        Model residuals for :math:`\hat{\mu}(x)` and :math:`\hat{\theta}(x)`.
 
-        :getter: Return the current residuals.
+        :getter: Return the current model residuals.
         :type: pandas.DataFrame
 
-        Notes
-        -----
-        Prior to computing the residuals, the finite-difference approximation
-        of the solution is approximated using 5-order, B-spline interpolation.
-
         """
-        if self.model.assortativity == 'positive':
-            traj = self._solution[::-1]
-        else:
-            traj = self._solution
-
-        # compute the residuals
-        xi = np.linspace(traj[0, 0], traj[-1, 0], 10 * traj.shape[0])
-        resids_arr = self.ivp.compute_residual(traj[:, :3], xi, k=5, ext=2)
-
-        # convert to a data frame
-        resids_arr[:, 0] = xi
-        col_names = ['x', r'$\hat{\mu}(x)$', r'$\hat{\theta}(x)$']
-        df = pd.DataFrame(resids_arr, columns=col_names)
-
-        return df.set_index('x')
+        normed_resids = (np.abs(self._raw_residuals[[0, 1]]) /
+                         self.interpolated_solution[[0, 1]])
+        return normed_resids
 
     def _clear_cache(self):
         """Clear cached functions used for numerical evaluation."""
