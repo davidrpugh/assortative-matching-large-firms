@@ -1,3 +1,6 @@
+from __future__ import division
+import collections
+
 import sympy as sym
 
 import inputs
@@ -190,7 +193,7 @@ class Model(object):
         model_params = dict(self.F_params.items() +
                             self.workers.params.items() +
                             self.firms.params.items())
-        return model_params
+        return self._order_params(model_params)
 
     @property
     def workers(self):
@@ -209,6 +212,11 @@ class Model(object):
     def workers(self, value):
         """Set new workers."""
         self._workers = self._validate_input(value)
+
+    @staticmethod
+    def _order_params(params):
+        """Cast a dictionary to an order dictionary."""
+        return collections.OrderedDict(sorted(params.items()))
 
     @staticmethod
     def _validate_assortativity(value):
