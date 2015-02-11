@@ -42,6 +42,24 @@ class OrthogonalCollocation(solvers.Solver):
         return np.hstack((lower, upper))
 
     @property
+    def _coefficients_mu(self):
+        return self.__coefficients_mu
+
+    @_coefficients_mu.setter
+    def _coefficients_mu(self, value):
+        assert (value.size == self.degree_mu + 1)
+        self.__coefficients_mu = value
+
+    @property
+    def _coefficients_theta(self):
+        return self.__coefficients_theta
+
+    @_coefficients_theta.setter
+    def _coefficients_theta(self, value):
+        assert (value.size == self.degree_theta + 1), "{}".format(value)
+        self.__coefficients_theta = value
+
+    @property
     def _collocation_nodes_mu(self):
         r"""Collocation nodes for approximation of :math:`\mu(x)`."""
         basis_coefs = np.zeros(self._coefficients_mu.size)
@@ -60,9 +78,9 @@ class OrthogonalCollocation(solvers.Solver):
     @property
     def _collocation_system(self):
         """System of non-linear equations whose solution is the coefficients."""
-        tup = (self._boundary_conditions,
-               self.evaluate_residual_mu(self._collocation_nodes_mu),
+        tup = (self.evaluate_residual_mu(self._collocation_nodes_mu),
                self.evaluate_residual_theta(self._collocation_nodes_theta),
+               self._boundary_conditions,
                )
         return np.hstack(tup)
 

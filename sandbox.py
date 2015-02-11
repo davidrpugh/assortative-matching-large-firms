@@ -431,7 +431,7 @@ tmp_coefs = init_coefs
 basis_coefs     = np.zeros(m + 1)
 basis_coefs[-1] = 1
 nodes           = Chebyshev(basis_coefs, [x_lower, x_upper]).roots()
-    
+print nodes.size    
 # empty dictionaries for storing output
 results_dict = {}
 

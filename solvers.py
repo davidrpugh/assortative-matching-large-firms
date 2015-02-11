@@ -373,7 +373,8 @@ class Solver(object):
             Residuals given the approximation :math:`\hat{\mu}(x)`.
 
         """
-        V = np.hstack((self.evaluate_mu(x), self.evaluate_theta(x)))
+        V = np.vstack((self.evaluate_mu(x)[np.newaxis, :],
+                       self.evaluate_theta(x)[np.newaxis, :]))
         residual = (self.evaluate_mu_prime(x) -
                     self.evaluate_rhs_mu_prime(x, V))
         return residual
@@ -394,7 +395,8 @@ class Solver(object):
             Residuals given the approximation :math:`\hat{\theta}(x)`.
 
         """
-        V = np.hstack((self.evaluate_mu(x), self.evaluate_theta(x)))
+        V = np.vstack((self.evaluate_mu(x)[np.newaxis, :],
+                       self.evaluate_theta(x)[np.newaxis, :]))
         residual = (self.evaluate_theta_prime(x) -
                     self.evaluate_rhs_theta_prime(x, V))
         return residual
