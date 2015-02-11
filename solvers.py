@@ -44,140 +44,63 @@ class Solver(object):
 
     @property
     def _numeric_input_types(self):
-        """
-        Vectorized function for numerical evaluation of the input type
-        complementarity.
-
-        :getter: Return current function for evaluating the complementarity.
-        :type: function
-
-        """
+        """Numerical evaluation of the input type complementarity."""
         if self.__numeric_input_types is None:
-            self.__numeric_input_types = sym.lambdify(self._symbolic_args,
-                                                      self._symbolic_input_types,
-                                                      self._modules)
+            self.__numeric_input_types = self._lambdify(self._symbolic_input_types)
         return self.__numeric_input_types
 
     @property
     def _numeric_mu_prime(self):
-        r"""
-        Vectorized function for numerical evaluation of the ODE describing
-        the behavior of :math:`\mu(x)`.
-
-        :getter: Return current function for evaluating :math:`\mu(x)'`.
-        :type: function
-
-        """
+        r"""Numerical evaluation of the ODE describing :math:`\mu(x)`."""
         if self.__numeric_mu_prime is None:
-            self.__numeric_mu_prime = sym.lambdify(self._symbolic_args,
-                                                   self._symbolic_mu_prime,
-                                                   self._modules)
+            self.__numeric_mu_prime = self._lambdify(self._symbolic_mu_prime)
         return self.__numeric_mu_prime
 
     @property
     def _numeric_profit(self):
-        """
-        Vectorized function for numerical evaluation of profits.
-
-        :getter: Return current function for evaluating profits.
-        :type: function
-
-        """
+        """Numerical evaluation of profits."""
         if self.__numeric_profit is None:
-            self.__numeric_profit = sym.lambdify(self._symbolic_args,
-                                                 self._symbolic_profit,
-                                                 self._modules)
+            self.__numeric_profit = self._lambdify(self._symbolic_profit)
         return self.__numeric_profit
 
     @property
     def _numeric_quantities(self):
-        """
-        Vectorized function for numerical evaluation of the quantity
-        complementarity.
-
-        :getter: Return current function for evaluating the complementarity.
-        :type: function
-
-        """
+        """Numerical evaluation of the quantity complementarity."""
         if self.__numeric_quantities is None:
-            self.__numeric_quantities = sym.lambdify(self._symbolic_args,
-                                                     self._symbolic_quantities,
-                                                     self._modules)
+            self.__numeric_quantities = self._lambdify(self._symbolic_quantities)
         return self.__numeric_quantities
 
     @property
     def _numeric_span_of_control(self):
-        """
-        Vectorized function for numerical evaluation of the resource
-        complementarity.
-
-        :getter: Return current function for evaluating the complementarity.
-        :type: function
-
-        """
+        """Numerical evaluation of the span-of-control complementarity."""
         if self.__numeric_span_of_control is None:
-            self.__numeric_span_of_control = sym.lambdify(self._symbolic_args,
-                                                          self._symbolic_span_of_control,
-                                                          self._modules)
+            self.__numeric_span_of_control = self._lambdify(self._symbolic_span_of_control)
         return self.__numeric_span_of_control
 
     @property
     def _numeric_theta_prime(self):
-        r"""
-        Vectorized function for numerical evaluation of the ODE describing
-        the behavior of :math:`\theta(x)`.
-
-        :getter: Return current function for evaluating :math:`\theta(x)'`.
-        :type: function
-
-        """
+        r"""Numerical evaluation of the ODE describing :math:`\theta(x)`."""
         if self.__numeric_theta_prime is None:
-            self.__numeric_theta_prime = sym.lambdify(self._symbolic_args,
-                                                      self._symbolic_theta_prime,
-                                                      self._modules)
+            self.__numeric_theta_prime = self._lambdify(self._symbolic_theta_prime)
         return self.__numeric_theta_prime
 
     @property
     def _numeric_type_resource(self):
-        """
-        Vectorized function for numerical evaluation of the resource
-        complementarity.
-
-        :getter: Return current function for evaluating the complementarity.
-        :type: function
-
-        """
+        """Numerical evaluation of the resource."""
         if self.__numeric_type_resource is None:
-            self.__numeric_type_resource = sym.lambdify(self._symbolic_args,
-                                                        self._symbolic_type_resource,
-                                                        self._modules)
+            self.__numeric_type_resource = self._lambdify(self._symbolic_type_resource)
         return self.__numeric_type_resource
 
     @property
     def _numeric_wage(self):
-        """
-        Vectorized function for numerical evaluation of wages.
-
-        :getter: Return current function for evaluating wages.
-        :type: function
-
-        """
+        """Numerical evaluation of wages."""
         if self.__numeric_wage is None:
-            self.__numeric_wage = sym.lambdify(self._symbolic_args,
-                                               self._symbolic_wage,
-                                               self._modules)
+            self.__numeric_wage = self._lambdify(self._symbolic_wage)
         return self.__numeric_wage
 
     @property
     def _solution(self):
-        """
-        Solution to the model represented as a NumPy array.
-
-        :getter: Return the array represnting the current solution
-        :setter: Set a new array defining the solution.
-        :type: numpy.ndarray
-
-        """
+        """Solution to the model represented as a NumPy array."""
         return self.__solution
 
     @_solution.setter
@@ -187,149 +110,74 @@ class Solver(object):
 
     @property
     def _symbolic_args(self):
-        """
-        Symbolic arguments used when lambdifying symbolic Jacobian and system.
-
-        :getter: Return the list of symbolic arguments.
-        :type: list
-
-        """
+        """List of symbolic arguments."""
         return self._symbolic_variables + self._symbolic_params
 
     @property
     def _symbolic_change_of_vars(self):
-        """
-        Symbolic change of variables
-
-        :getter: Return the dictionary of variables substitutions.
-        :type: dict
-
-        """
+        """Symbolic change of variables."""
         return {'mu': V[0], 'theta': V[1]}
 
     @property
     def _symbolic_input_types(self):
-        """
-        Symbolic expression for complementarity between input types.
-
-        :getter: Return the current expression for the complementarity.
-        :type: sympy.Basic
-
-        """
+        """Symbolic expression for complementarity between input types."""
         Fxy = self.model.matching.input_types
         return Fxy.subs(self._symbolic_change_of_vars)
 
     @property
     def _symbolic_mu_prime(self):
-        r"""
-        Symbolic expression for the :math:`\mu'(x)`.
-
-        :getter: Return the symbolic expression.
-        :type: sympy.Basic
-
-        """
+        """Symbolic expression for the :math:`\mu'(x)`."""
         return self.model.matching.mu_prime.subs(self._symbolic_change_of_vars)
 
     @property
     def _symbolic_params(self):
-        """
-        Symbolic parameters passed as arguments when lambdifying symbolic
-        Jacobian and system.
-
-        :getter: Return the list of symbolic parameter arguments.
-        :type: list
-
-        """
+        """List of symbolic parameters."""
         return sym.var(list(self.model.params.keys()))
 
     @property
     def _symbolic_profit(self):
-        """
-        Symbolic expression defining profit.
-
-        :getter: Return the symbolic expression for profits.
-        :type: sympy.Basic
-
-        """
+        """Symbolic expression defining profit."""
         profit = self.model.matching.profit
         return profit.subs(self._symbolic_change_of_vars)
 
     @property
     def _symbolic_quantities(self):
-        """
-        Symbolic expression for complementarity between input quantities.
-
-        :getter: Return the current expression for the complementarity.
-        :type: sympy.Basic
-
-        """
+        """Symbolic expression for complementarity between input quantities."""
         Flr = self.model.matching.quantities
         return Flr.subs(self._symbolic_change_of_vars)
 
     @property
     def _symbolic_span_of_control(self):
-        """
-        Symbolic expression for span-of-control complementarity.
-
-        :getter: Return the current expression for the complementarity.
-        :type: sympy.Basic
-
-        """
+        """Symbolic expression for span-of-control complementarity."""
         Fyl = self.model.matching.span_of_control
         return Fyl.subs(self._symbolic_change_of_vars)
 
     @property
     def _symbolic_theta_prime(self):
-        r"""
-        Symbolic expression for the :math:`\theta'(x)`.
-
-        :getter: Return the symbolic expression.
-        :type: sympy.Basic
-
-        """
+        r"""Symbolic expression for the :math:`\theta'(x)`."""
         return self.model.matching.theta_prime.subs(self._symbolic_change_of_vars)
 
     @property
     def _symbolic_type_resource(self):
-        """
-        Symbolic expression for complementarity between worker type and
-        firm resources.
-
-        :getter: Return the current expression for the complementarity.
-        :type: sympy.Basic
-
-        """
+        """Symbolic expression for complementarity between x and r."""
         Fxr = self.model.matching.type_resource
         return Fxr.subs(self._symbolic_change_of_vars)
 
     @property
     def _symbolic_variables(self):
-        """
-        Symbolic variables passed as arguments when lambdifying symbolic
-        Jacobian and system.
-
-        :getter: Return the list of symbolic variable arguments.
-        :type: list
-
-        """
+        """List of symbolic variables for the model."""
         return [self.model.workers.var, V]
 
     @property
     def _symbolic_wage(self):
-        """
-        Symbolic expression defining wages.
-
-        :getter: Return the symbolic expression for wages.
-        :type: sympy.Basic
-
-        """
+        """Symbolic expression defining wages."""
         wage = self.model.matching.wage
         return wage.subs(self._symbolic_change_of_vars)
 
     @property
     def model(self):
         """
-        Instance of the models.Model class to be solved via forward shooting.
+        Instance of the models.Model class.
 
         :getter: Return the current models.Model instance.
         :setter: Set a new models.Model instance.
@@ -353,7 +201,7 @@ class Solver(object):
         :type: pandas.DataFrame
 
         """
-        col_names = ['x', 'firm productivity', 'firm size', 'wage', 'profit']
+        col_names = ['x', r'$\mu(x)$', r'$\theta(x)$', '$w(x)$', r'$\pi(x)$']
         df = pd.DataFrame(self._solution, columns=col_names)
         if self.model.assortativity == 'positive':
             df.sort('x', inplace=True)
@@ -361,23 +209,8 @@ class Solver(object):
             pass
         return df.set_index('x')
 
-    def _check_pam(self, step):
-        r"""
-        Check necessary condition required for a positive assortative
-        matching (PAM).
-
-        Parameters
-        ----------
-        step : numpy.ndarray (shape=(5,))
-            Step along a putative solution to the model.
-
-        Returns
-        -------
-        check : boolean
-            Flag indicating whether positive assortative matching condition is
-            satisfied for the given step.
-
-        """
+    def _check_pam(self, step, tol):
+        """Check necessary condition for assortative matching."""
         # unpack the step
         x, V = step[0], step[1:3]
 
@@ -403,6 +236,10 @@ class Solver(object):
         self.__numeric_type_resource = None
         self.__numeric_wage = None
 
+    def _lambdify(self, expression):
+        """Lambdifies a symbolic expression."""
+        return sym.lambdify(self._symbolic_args, expression, self._modules)
+
     @staticmethod
     def _validate_model(model):
         """Validate the model attribute."""
@@ -412,9 +249,9 @@ class Solver(object):
         else:
             return model
 
-    def _validate_solution(self, solution):
+    def _validate_solution(self, solution, tol):
         """Validate a putative solution to the model."""
-        check = np.apply_along_axis(self._check_pam, axis=1, arr=solution)
+        check = np.apply_along_axis(self._check_pam, 1, solution, tol)
         if self.model.assortativity == 'positive' and (not check.all()):
             mesg = ("Approximated solution failed to satisfy required " +
                     "assortativity condition.")
