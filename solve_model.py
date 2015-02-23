@@ -107,7 +107,7 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, intg, ini):
 
 	return ('theta',(shapel, locationl, scalel), theta_dis), ('w',(shapew, locationw, scalew),wage_dis)
 
-def Calculate_MSE(data, data_pams, estimated_pams, distribution):
+def Calculate_MSE_pdf(data, data_pams, estimated_pams, distribution):
 	'''
 	Given some estimated shape distribution parameters, gives the mean square error related to
 	the data's fitted distribution.
@@ -132,6 +132,37 @@ def Calculate_MSE(data, data_pams, estimated_pams, distribution):
 			shape, loc, scale = data_pams[i]
 			eshape, eloc, escale = estimated_pams[i]
 			err_sq = (stats.lognorm.pdf(data[i],s=shape, loc=loc, scale=scale) - stats.lognorm.pdf(data[i],s=eshape, loc=eloc, scale=escale))**2
+			mse += (sum(err_sq)/float(len(err_sq)),)
+	else:
+		raise NotImplementedError
+
+	return mse
+
+def Calculate_MSE_cdf(data, data_pams, estimated_pams, distribution):
+	'''
+	Given some estimated shape distribution parameters, gives the mean square error related to
+	the data's fitted distribution.
+
+	Must have the module stats imported from scipy!!
+
+	Parameters
+    ----------
+    data:			data points to calculate the mse (tup of np.ndarrays)
+	data_pams: 		parameters of data distributions (tup of floats)
+	estimated_pams: parameters of model distributions (tup of floats)
+	distribution: 	type of distribution of the n distributions to estimated (str)
+					(Supported by now: 'lognormal' only)
+
+	Returns
+    -------
+	mse = Mean square errors of fit (tup of floats, one for each n)
+	'''
+	mse = ()
+	if distribution =='lognormal':
+		for i in range(len(data)):
+			shape, loc, scale = data_pams[i]
+			eshape, eloc, escale = estimated_pams[i]
+			err_sq = (stats.lognorm.cdf(data[i],s=shape, loc=loc, scale=scale) - stats.lognorm.cdf(data[i],s=eshape, loc=eloc, scale=escale))**2
 			mse += (sum(err_sq)/float(len(err_sq)),)
 	else:
 		raise NotImplementedError
