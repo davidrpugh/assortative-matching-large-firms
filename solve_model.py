@@ -99,8 +99,8 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, intg, ini):
 	''' 5. Transform into distibutions '''
 	theta_range = np.arange(min(thetas), max(thetas), 0.01)
 	w_range = np.arange(min(ws), max(ws), 0.01)
-	theta_dis = firms.evaluate_pdf(y_theta(theta_range)) * theta_range
-	wage_dis = firms.evaluate_pdf(y_wage(w_range)) * w_range
+	theta_dis = firms.evaluate_pdf(y_theta(theta_range))
+	wage_dis = firms.evaluate_pdf(y_wage(w_range))
 
 	''' 6. Fit distributions '''
 	shapel, locationl, scalel = stats.lognorm.fit(theta_dis)
