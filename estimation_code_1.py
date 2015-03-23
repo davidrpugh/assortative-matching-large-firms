@@ -32,7 +32,7 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini):
 
 	Returns
     -------
-	A tutple consisting on (string label,(distribution parameters), fitted values)
+	A tutple consisting on (mu(x)), theta(x). w(x)), final result from 
 
 	"""
 	flag_solver = False
@@ -65,7 +65,7 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini):
 	w_x = PchipInterpolator(x, ws)
 
 	
-	return (mu_x, theta_x, w_x)
+	return (mu_x, theta_x, w_x), thetas[-1]
 
 def import_data(file_name):
     '''
@@ -149,9 +149,9 @@ def Calculate_MSE(data, functions_from_model):
 	w_err = []			# Should do this with arrays
 
 	for i in range(len(xs)):
-		mu_hat = mu_x(x[i])
-		theta_hat = theta_x(x[i])
-		w_hat = w_x(x[i])
+		mu_hat = mu_x(xs[i])
+		theta_hat = theta_x(xs[i])
+		w_hat = w_x(xs[i])
 
 		mu_err.append((mu_hat-ys[i])**2)
 		theta_err.append((theta_hat-thetas[i])**2)
