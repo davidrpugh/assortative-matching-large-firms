@@ -67,7 +67,7 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini, toleranc
 	
 	return (mu_x, theta_x, w_x), thetas[-1]
 
-def import_data(file_name):
+def import_data(file_name, ID=True):
     '''
     This function imports the data from a csv file, returns ndarrays with it
 
@@ -75,6 +75,7 @@ def import_data(file_name):
     -----
 
     file_name : (str) path and name of the csv file.
+    ID (optional) : boolean, True if it contais ID in the first collunm
 
     Output
     ------
@@ -82,7 +83,6 @@ def import_data(file_name):
     firm_age (float), industry_code (int), region (int)
 
     '''
-
     # Opening data
     with open(file_name, 'rb') as f:
         reader = csv.reader(f)
@@ -94,14 +94,14 @@ def import_data(file_name):
     wage = []
     profit = []
     skill_w = []
-    firm_age = []
-    industry_code = []
-    region = []
+    c = 0
+    if ID==False:
+    	c += 1
     for row in data[1:]:
-        size.append(int(row[1]))
-        wage.append(float(row[2]))
-        profit.append(float(row[3]))
-        skill_w.append(float(row[4]))
+        size.append(float(row[1-c]))
+        wage.append(float(row[2-c]))
+        profit.append(float(row[3-c]))
+        skill_w.append(float(row[4-c]))
     # Firm size in workers (int)
     size = np.asarray(size)
     # Daily average wage for each firm, in euros (float)
