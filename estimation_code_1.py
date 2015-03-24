@@ -157,7 +157,7 @@ def Calculate_MSE(data, functions_from_model):
 		theta_err.append((theta_hat-thetas[i])**2)
 		w_err.append((w_hat-ws[i])**2)
 
-	return mu_err+theta_err+w_err
+	return np.sum(mu_err+theta_err+w_err)
 
 
 def ObjectiveFunction(params, data, x_pam, x_bounds, y_pam, y_bounds, guess):
