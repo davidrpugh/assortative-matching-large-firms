@@ -11,7 +11,7 @@ import shooting
 
 
 
-def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini):
+def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini, tolerance=1e-6):
 	"""
 	Function that solves the sorting model and returns functions mu(x), theta(x), w(x).
 
@@ -44,7 +44,7 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini):
 
 	solver = shooting.ShootingSolver(model=modelA)
 	''' 1.Solve the Model '''
-	solver.solve(ini, tol=1e-6, number_knots=N_knots, integrator=intg,
+	solver.solve(ini, tol=tolerance, number_knots=N_knots, integrator=intg,
         	     atol=1e-12, rtol=1e-9)
 	
 	''' 2.Check it is truly solved '''
