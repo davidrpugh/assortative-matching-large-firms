@@ -223,3 +223,68 @@ def ObjectiveFunction(params, data, x_pam, x_bounds, y_pam, y_bounds, guess):
 	mse = Calculate_MSE(data, (mu_hat, theta_hat, w_hat) )
 
 	return mse
+def BulletProofObjectiveFunction(params, data, x_pam, x_bounds, y_pam, y_bounds, guess):
+	"""
+	Calculates the sum of squared errors from the model with given parameters.
+
+	Assumes lognormal distribution for both firms and workers.
+
+	In: tuple of 3 parameters
+		tuple of 4 ndarrays with data points for (x, y, theta, w)
+		tuple with mean and variance of the worker distribution
+		tuple with the bounds of the worker distribution
+		tuple with mean and variance of the firm distribution
+		tuple with the bounds of the firm distribution
+
+	Out: Sum of squared residuals
+
+	"""
+	""" 1. Unpack workers and firms distributions """
+	# define some default workers skill
+	x, mu1, sigma1 = sym.var('x, mu1, sigma1')
+	skill_cdf = 0.5 + 0.5 * sym.erf((x - mu1) / sym.sqrt(2 * sigma1**2))
+	skill_params = {'mu1': x_pam[0], 'sigma1': x_pam[1]}
+	skill_bounds = [x_bounds[0], x_bounds[1]]
+
+	workers = inputs.Input(var=x,
+                           cdf=skill_cdf,
+                       		params=skill_params,
+                       		bounds=skill_bounds,
+                      		)
+
+	# define some default firms
+	y, mu2, sigma2 = sym.var('y, mu2, sigma2')
+	productivity_cdf = 0.5 + 0.5 * sym.erf((y - mu2) / sym.sqrt(2 * sigma2**2))
+	productivity_params = {'mu2': y_pam[0], 'sigma2': y_pam[1]}
+	productivity_bounds = [y_bounds[0], y_bounds[1]]
+
+	firms = inputs.Input(var=y,
+    	                 cdf=productivity_cdf,
+        	             params=productivity_params,
+            	         bounds=productivity_bounds,
+                	     )
+	""" 2. Unpack params and define the production function (MS) """
+	# CES between x and y
+	omega_A, sigma_A = sym.var('omega_A, sigma_A')
+	A = ((omega_A * x**((sigma_A - 1) / sigma_A) + 
+    	 (1 - omega_A) * y**((sigma_A - 1) / sigma_A))**(sigma_A / (sigma_A - 1))) 
+
+	# Cobb-Douglas between l and r
+	l, r, omega_B = sym.var('l, r, omega_B')
+	B = l**omega_B * r**(1 - omega_B)
+
+	F = A * B
+
+	F_params = {'omega_A':params[0], 'omega_B':params[1], 'sigma_A':params[2]}
+
+	""" 3. Solve the model """
+	try:
+		sol = Solve_Model(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess)
+		mu_hat, theta_hat, w_hat = sol[0]
+		guess = sol[1]
+
+		""" 4. Calculate and return """
+		mse = Calculate_MSE(data, (mu_hat, theta_hat, w_hat) )
+	except AssertionError:
+		mse = np.inf
+	return mse
