@@ -360,10 +360,11 @@ def StubbornObjectiveFunction(params, data, x_pam, x_bounds, y_pam, y_bounds, gu
 					try: 
 						sol = Solve_Model(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess*100.0)
 					except AssertionError:
-						print "OK JUST LEAVE IT"
-						return np.inf
+						print "OK JUST LEAVE IT", params
+						return 400.00
 	""" 4. Calculate and return """				 	
 	mu_hat, theta_hat, w_hat = sol[0]
 	guess = sol[1]	
 	mse = Calculate_MSE(data, (mu_hat, theta_hat, w_hat) )
+	print mse, params
 	return mse
