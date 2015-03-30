@@ -60,12 +60,12 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini, toleranc
 	ws = solver.solution['$w(x)$'].values
 
 	''' 4.Interpolate mu(x), theta(x), w(x) '''
-	mu_x = PchipInterpolator(x, mus)
-	theta_x = PchipInterpolator(x, thetas)
-	w_x = PchipInterpolator(x, ws)
+	mu1_y = PchipInterpolator(mus, x)
+	theta_y = PchipInterpolator(mus, thetas)
+	w_y = PchipInterpolator(mus, ws)
 
 	
-	return (mu_x, theta_x, w_x), thetas[-1]
+	return (mu1_y, theta_y, w_y), thetas[-1]
 
 def import_data(file_name, ID=True):
     '''
@@ -138,9 +138,9 @@ def Calculate_MSE(data, functions_from_model):
 	thetas = data[2]
 	ws = data[3]
 
-	mu_x = functions_from_model[0]
-	theta_x = functions_from_model[1]
-	w_x = functions_from_model[2]
+	mu_y = functions_from_model[0]
+	theta_y = functions_from_model[1]
+	w_y = functions_from_model[2]
 
 	'''2. Calculate Mean Square error'''
 
@@ -148,12 +148,12 @@ def Calculate_MSE(data, functions_from_model):
 	theta_err = []
 	w_err = []			# Should do this with arrays
 
-	for i in range(len(xs)):
-		mu_hat = mu_x(xs[i])
-		theta_hat = theta_x(xs[i])
-		w_hat = w_x(xs[i])
+	for i in range(len(ys)):
+		mu_hat = mu_y(ys[i])
+		theta_hat = theta_y(ys[i])
+		w_hat = w_y(ys[i])
 
-		mu_err.append((mu_hat-ys[i])**2)
+		mu_err.append((mu_hat-xs[i])**2)
 		theta_err.append((theta_hat-thetas[i])**2)
 		w_err.append((w_hat-ws[i])**2)
 
@@ -178,8 +178,9 @@ def ObjectiveFunction(params, data, x_pam, x_bounds, y_pam, y_bounds, guess):
 	"""
 	""" 1. Unpack workers and firms distributions """
 	# define some default workers skill
+	N = len(data[0])
 	x, mu1, sigma1 = sym.var('x, mu1, sigma1')
-	skill_cdf = 0.5 + 0.5 * sym.erf((x - mu1) / sym.sqrt(2 * sigma1**2))
+	skill_cdf = N*(0.5 + 0.5 * sym.erf((x - mu1) / sym.sqrt(2 * sigma1**2)))
 	skill_params = {'mu1': x_pam[0], 'sigma1': x_pam[1]}
 	skill_bounds = [x_bounds[0], x_bounds[1]]
 
@@ -191,7 +192,7 @@ def ObjectiveFunction(params, data, x_pam, x_bounds, y_pam, y_bounds, guess):
 
 	# define some default firms
 	y, mu2, sigma2 = sym.var('y, mu2, sigma2')
-	productivity_cdf = 0.5 + 0.5 * sym.erf((y - mu2) / sym.sqrt(2 * sigma2**2))
+	productivity_cdf = N*(0.5 + 0.5 * sym.erf((y - mu2) / sym.sqrt(2 * sigma2**2)))
 	productivity_params = {'mu2': y_pam[0], 'sigma2': y_pam[1]}
 	productivity_bounds = [y_bounds[0], y_bounds[1]]
 
@@ -359,8 +360,8 @@ def StubbornObjectiveFunction(params, data, x_pam, x_bounds, y_pam, y_bounds, gu
 				except AssertionError:
 					try: 
 						sol = Solve_Model(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess*100.0)
-					except AssertionError:
-						print "OK JUST LEAVE IT", params
+					except AssertionError, e:
+						print "OK JUST LEAVE IT", params, "error:", e
 						return 400.00
 	""" 4. Calculate and return """				 	
 	mu_hat, theta_hat, w_hat = sol[0]
