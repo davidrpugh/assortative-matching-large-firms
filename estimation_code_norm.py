@@ -366,7 +366,7 @@ def StubbornObjectiveFunction(params, data, x_pam, x_bounds, y_pam, y_bounds, gu
 	except ValueError, e:
 		print "Wooops! ", params, e
 		try:
-			Solve_Model(F, F_params, workers, firms, 'negative', 6000.0, 'lsoda', guess)			
+			sol = Solve_Model(F, F_params, workers, firms, 'negative', 6000.0, 'lsoda', guess)			
 		except ValueError, e:
 			print "OK JUST LEAVE IT", params, "error:", e
 			return 400.00
