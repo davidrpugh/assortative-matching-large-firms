@@ -363,6 +363,14 @@ def StubbornObjectiveFunction(params, data, x_pam, x_bounds, y_pam, y_bounds, gu
 					except AssertionError, e:
 						print "OK JUST LEAVE IT", params, "error:", e
 						return 400.00
+	except ValueError, e:
+		print "Wooops! ", params, e
+		try:
+			Solve_Model(F, F_params, workers, firms, 'negative', 6000.0, 'lsoda', guess)			
+		except ValueError, e:
+			print "OK JUST LEAVE IT", params, "error:", e
+			return 400.00
+
 	""" 4. Calculate and return """				 	
 	mu_hat, theta_hat, w_hat = sol[0]
 	guess = sol[1]	
