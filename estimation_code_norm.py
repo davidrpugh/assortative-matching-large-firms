@@ -67,6 +67,59 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini, toleranc
 	
 	return (mu1_y, theta_y, w_y), thetas[-1]
 
+def Solve_Model2(Fnc, F_params, workers, firms, ass, N_knots, intg, ini, tolerance=1e-6):
+	"""
+	Function that solves the sorting model and returns functions mu(x), theta(x), w(x).
+
+	Assumes monotonicity,log normal distributions for size and wages.
+	To fit the data, it uses worker skill as main variable.
+	It also only uses the shooting solver, checking for completition.
+
+	Parameters
+    ----------
+	Fnc: Production Function (sym)
+	F_params: Parameters of Fnc (dic)
+	workers: an Input class instance for workers
+	firms: an Input class instance for firms
+	ass: assortativity ('positive' or 'negative') (string)
+	N_knots: number of knots (int)
+	intg: a string with the integrator of preference (string)
+	ini: initial guess (float)
+
+	Returns
+    -------
+	A tutple consisting on (theta(x), w(x), pis_from_model), final result from 
+
+	"""
+	flag_solver = False
+	modelA = models.Model(assortativity=ass,
+    	                 workers=workers,
+        	             firms=firms,
+            	         production=Fnc,
+                	     params=F_params)
+
+	solver = shooting.ShootingSolver(model=modelA)
+	''' 1.Solve the Model '''
+	solver.solve(ini, tol=tolerance, number_knots=N_knots, integrator=intg,
+        	     atol=1e-12, rtol=1e-9)
+	
+	''' 2.Check it is truly solved '''
+	if not (solver._converged_firms(1e-6) and solver._converged_firms(1e-6)):
+		flag_solver = True
+	err_mesg = ("Fail to solve!")
+   	assert (solver._converged_firms(1e-6) and solver._converged_firms(1e-6)), err_mesg
+
+   	''' 3.Store vectors of results '''
+	thetas = solver.solution['$\\theta(x)$'].values
+	ws = solver.solution['$w(x)$'].values
+	pis_fm = solver.solution['$\\pi(x)$'].values
+
+	''' 4.Interpolate mu(x), theta(x), w(x) '''
+	theta_pi = PchipInterpolator(pis_fm, thetas)
+	w_pi = PchipInterpolator(pis_fm, ws)
+	
+	return (theta_pi, w_pi, pis_fm), thetas[-1]
+
 def import_data(file_name, ID=True):
     '''
     This function imports the data from a csv file, returns ndarrays with it
@@ -113,6 +166,47 @@ def import_data(file_name, ID=True):
 
     return skill_w, profit, size, wage
 
+def import_data2(file_name, ID=True):
+    '''
+    This function imports the data from a csv file, returns ndarrays with it
+
+    Input
+    -----
+
+    file_name : (str) path and name of the csv file.
+    ID (optional) : boolean, True if it contais ID in the first collunm
+
+    Output
+    ------
+    Following np.ndarrays: profit (float), size (float), wage (float)
+    '''
+    # Opening data
+    with open(file_name, 'rb') as f:
+        reader = csv.reader(f)
+       	data = list(reader)
+
+    # Passing data to lists, then to arrays (should change this to make it all in one) 
+    size = []
+    wage = []
+    profit = []
+    c = 0
+    if ID==False:
+    	c += 1
+    for row in data[1:]:
+        size.append(float(row[1-c]))
+        wage.append(float(row[2-c]))
+        profit.append(float(row[3-c]))
+    # Firm size in workers (int)
+    size = np.asarray(size)
+    # Daily average wage for each firm, in euros (float)
+    wage = np.asarray(wage)
+    # Declared average profits for each firm per year, in euros (float)
+    profit = np.asarray(profit)
+
+    return profit, size, wage
+
+
+
 
 def Calculate_MSE(data, functions_from_model):
 	'''
@@ -158,6 +252,49 @@ def Calculate_MSE(data, functions_from_model):
 		w_err.append((w_hat-ws[i])**2)
 
 	return np.sum(mu_err+theta_err+w_err)
+
+def Calculate_MSE2(data, functions_from_model):
+	'''
+	Given some estimated shape distribution parameters, gives the mean square error related to
+	the data's fitted distribution.
+
+	Must have the module stats imported from scipy!!
+
+	Parameters
+    ----------
+    data:			        (1x4) tuple of ndarrays. Data points to calculate the mse Order: pi, theta, w.
+	functions_from_model: 	(1x3) tuple of functions and data from the model solution. Order: theta(pi), w(pi), pis from model.
+							Functions must be executable (that is, input a float and return a float)			
+
+	Returns
+    -------
+	mse = Mean square errors of fit (tup of floats, one for each n)
+	'''
+
+	'''1. Unpack Data and functions'''
+	pis = data[0]
+	thetas = data[1]
+	ws = data[2]
+
+	theta_pi = functions_from_model[0]
+	w_pi = functions_from_model[1]
+	pis_from_model = functions_from_model[2]
+
+	'''2. Calculate Mean Square error'''
+
+	theta_err = []
+	w_err = []			# Should do this with arrays
+
+	for i in range(len(pis)):
+		theta_hat = theta_pi(pis[i])
+		w_hat = w_pi(pis[i])
+
+		theta_err.append((theta_hat-thetas[i])**2)
+		w_err.append((w_hat-ws[i])**2)
+		
+	pi_KS = stats.ks_2samp(pis, pis_from_model)[0]
+
+	return np.sum(w_err+theta_err) + pi_KS
 
 
 def ObjectiveFunction(params, data, x_pam, x_bounds, y_pam, y_bounds, guess):
@@ -375,5 +512,92 @@ def StubbornObjectiveFunction(params, data, x_pam, x_bounds, y_pam, y_bounds, gu
 	mu_hat, theta_hat, w_hat = sol[0]
 	guess = sol[1]	
 	mse = Calculate_MSE(data, (mu_hat, theta_hat, w_hat) )
+	print mse, params
+	return mse
+
+def StubbornObjectiveFunction2(params, data, x_pam, x_bounds, y_pam, y_bounds, guess):
+	"""
+	Calculates the sum of squared errors from the model with given parameters.
+
+	Assumes lognormal distribution for both firms and workers.
+
+	In: tuple of 3 parameters
+		tuple of 4 ndarrays with data points for (x, y, theta, w)
+		tuple with mean and variance of the worker distribution
+		tuple with the bounds of the worker distribution
+		tuple with mean and variance of the firm distribution
+		tuple with the bounds of the firm distribution
+
+	Out: Sum of squared residuals
+
+	"""
+	""" 1. Unpack workers and firms distributions """
+	# define some default workers skill
+	x, mu1, sigma1 = sym.var('x, mu1, sigma1')
+	skill_cdf = 0.5 + 0.5 * sym.erf((x - mu1) / sym.sqrt(2 * sigma1**2))
+	skill_params = {'mu1': x_pam[0], 'sigma1': x_pam[1]}
+	skill_bounds = [x_bounds[0], x_bounds[1]]
+
+	workers = inputs.Input(var=x,
+                           cdf=skill_cdf,
+                       		params=skill_params,
+                       		bounds=skill_bounds,
+                      		)
+
+	# define some default firms
+	y, mu2, sigma2 = sym.var('y, mu2, sigma2')
+	productivity_cdf = 0.5 + 0.5 * sym.erf((y - mu2) / sym.sqrt(2 * sigma2**2))
+	productivity_params = {'mu2': y_pam[0], 'sigma2': y_pam[1]}
+	productivity_bounds = [y_bounds[0], y_bounds[1]]
+
+	firms = inputs.Input(var=y,
+    	                 cdf=productivity_cdf,
+        	             params=productivity_params,
+            	         bounds=productivity_bounds,
+                	     )
+	""" 2. Unpack params and define the production function (MS) """
+	# CES between x and y
+	omega_A, sigma_A, Big_A = sym.var('omega_A, sigma_A, Big_A')
+	A = ((omega_A * x**((sigma_A - 1) / sigma_A) + 
+    	 (1 - omega_A) * y**((sigma_A - 1) / sigma_A))**(sigma_A / (sigma_A - 1))) 
+
+	# Cobb-Douglas between l and r
+	l, r, omega_B = sym.var('l, r, omega_B')
+	B = l**omega_B * r**(1 - omega_B)
+
+	F = Big_A * A * B
+
+	F_params = {'omega_A':params[0], 'omega_B':params[1], 'sigma_A':params[2], 'Big_A':params[3]}
+
+	""" 3. Solve the model """
+	try:
+		sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess)		
+	except AssertionError:
+		try: 
+			sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'vode', guess)
+		except AssertionError:
+			try: 
+				sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'dopri5', guess)					 
+			except AssertionError:
+				try: 
+					sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess/100.0)
+				except AssertionError:
+					try: 
+						sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess*100.0)
+					except AssertionError, e:
+						print "OK JUST LEAVE IT", params, "error:", e
+						return 400000.00
+	except ValueError, e:
+		print "Wooops! ", params, e
+		try:
+			sol = Solve_Model2(F, F_params, workers, firms, 'negative', 6000.0, 'lsoda', guess)			
+		except ValueError, e:
+			print "OK JUST LEAVE IT", params, "error:", e
+			return 4000000.00
+
+	""" 4. Calculate and return """				 	
+	mu_hat, theta_hat, pis_hat = sol[0]
+	guess = sol[1]	
+	mse = Calculate_MSE2(data, (mu_hat, theta_hat, pis_hat) )
 	print mse, params
 	return mse
