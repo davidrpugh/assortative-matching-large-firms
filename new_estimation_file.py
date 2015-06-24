@@ -61,8 +61,8 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini, toleranc
 	xs_fm = solver.solution.index.values
 
 	''' 4.Interpolate w(theta), pi(theta) '''
-	w_theta = interp1d(ws, thetas,bounds_error=False,fill_value=1.0)
-	pi_theta = interp1d(pis_fm,thetas,bounds_error=False,fill_value=1.0)
+	w_theta = interp1d(ws, thetas,bounds_error=False,fill_value=-99.0)
+	pi_theta = interp1d(pis_fm,thetas,bounds_error=False,fill_value=-99.0)
 	
 	return (w_theta, pi_theta, thetas, xs_fm), thetas[-1]
 
@@ -168,14 +168,14 @@ def Calculate_MSE(data, functions_from_model,penalty=100):
 
 	for i in range(len(pis)):
 		# For each wage observation out of range, penalty
-		if theta_w(np.exp(ws[i]))==0.0:
-			w_err = np.hstack((w_err,penalty))	
+		if theta_w(np.exp(ws[i]))==-99.0:
+			w_err = np.hstack((w_err,penalty*weights[i]))	
 		else:
 			w_hat = np.log(theta_w(np.exp(ws[i])))
 			w_err = np.hstack((w_err, (w_hat-ws[i])**2*weights[i]))
 		# For each profit observation out of range, penalty
-		if theta_pi(np.exp(pis[i]))==0.0:			
-			pi_err = np.hstack((pi_err,penalty))
+		if theta_pi(np.exp(pis[i]))==-99.0:	
+			pi_err = np.hstack((pi_err,penalty*weights[i]))
 		else:
 			pi_hat = np.log(theta_pi(np.exp(pis[i])))
 			pi_err = np.hstack((pi_err, (pi_hat-pis[i])**2*weights[i]))
@@ -187,11 +187,11 @@ def Calculate_MSE(data, functions_from_model,penalty=100):
 	# Getting cdf from data
 	cdf_theta_data = []
 	r = 0.0
-	for i in range(len(theta)):
+	for i in range(len(thetas)):
 		r += thetas[i]*weights[i]
 		cdf_theta_data.append(r)  #calculates cdf of theta 
 
-	cdf_theta_data = cdf_theta_data/cdf_theta_data[-1] #normalise to 1
+	cdf_theta_data = np.array(cdf_theta_data)/cdf_theta_data[-1] #normalise to 1
 
     # getting size distribution from model
     # Sorting the thetas
@@ -209,17 +209,20 @@ def Calculate_MSE(data, functions_from_model,penalty=100):
 
 	cdf_theta_hat  = np.cumsum(pdf_theta_hat )			# Backing up model cdf
 	cdf_theta_hat  = cdf_theta_hat /cdf_theta_hat [-1] 	# Normilization of the model cdf
-	cdf_theta_int = interp1d(np.log(theta_range),cdf_theta_hat)
+	cdf_theta_int = interp1d(np.log(theta_range),cdf_theta_hat,bounds_error=False,fill_value=-99.0)
 
 	# Calculate the error
 	theta_err = np.empty(0)
 	for i in range(len(pis)):
 		cdf_hat = cdf_theta_int(thetas[i])
-		theta_err = np.hstack(theta_err, (cdf_hat-cdf_theta_data[i])**2)   #weighting not needed here because already in cdf
+		if cdf_hat == -99.0:
+			theta_err = np.hstack((theta_err,penalty))
+		else:
+			theta_err = np.hstack((theta_err, (cdf_hat-cdf_theta_data[i])**2))   #weighting not needed here because already in cdf
 
 	mse_theta = np.sum(theta_err)
 
-
+	print mse_theta, mse_pi, mse_w
 	return mse_theta + mse_pi + mse_w
 
 
