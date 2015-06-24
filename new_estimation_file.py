@@ -154,7 +154,7 @@ def Calculate_MSE(data, functions_from_model,penalty=100):
 	ws = data[1]
 	if len(data)==4:
 		weights = data[3]
-	else
+	else:
 		weights = np.ones(len(pis))
 
 	theta_w = functions_from_model[0]
@@ -188,14 +188,14 @@ def Calculate_MSE(data, functions_from_model,penalty=100):
 	cdf_theta_data = []
 	r = 0.0
 	for i in range(len(theta)):
-    	r += thetas[i]*weights[i]
-    	cdf_theta_data.append(r)  #calculates cdf of theta 
+		r += thetas[i]*weights[i]
+		cdf_theta_data.append(r)  #calculates cdf of theta 
 
-    cdf_theta_data = cdf_theta_data/cdf_theta_data[-1] #normalise to 1
+	cdf_theta_data = cdf_theta_data/cdf_theta_data[-1] #normalise to 1
 
     # getting size distribution from model
     # Sorting the thetas
-    n_thetas = dict(zip(list(map(str, range(0,1000))),thetas_from_model))
+	n_thetas = dict(zip(list(map(str, range(0,1000))),thetas_from_model))
 	sort_thetas = sorted(n_thetas.items(), key=operator.itemgetter(1))
 	theta_range = sorted(thetas_from_model)
 
@@ -204,8 +204,8 @@ def Calculate_MSE(data, functions_from_model,penalty=100):
 	n_pdf_x = dict(enumerate(pdf_x)) 			# creates a dictionary where the keys are the #obs of x
 	pdf_theta_hat = np.empty(0)
 	for pair in sort_thetas:
-    	index = int(pair[0])
-    	pdf_theta_hat  = np.hstack((pdf_theta_hat ,(n_pdf_x[index]/pair[1])))
+		index = int(pair[0])
+		pdf_theta_hat  = np.hstack((pdf_theta_hat ,(n_pdf_x[index]/pair[1])))
 
 	cdf_theta_hat  = np.cumsum(pdf_theta_hat )			# Backing up model cdf
 	cdf_theta_hat  = cdf_theta_hat /cdf_theta_hat [-1] 	# Normilization of the model cdf
