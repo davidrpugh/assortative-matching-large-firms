@@ -125,8 +125,9 @@ def import_data(file_name, ID=True, weights=False, logs=False):
     else:
     	return size, wage, profit
 
-
-
+def pdf_workers(x, mu_workers=0.0, sigma_workers=1.0):
+    	return np.sqrt(2)*np.exp(-(-mu_workers + np.log(x))**2/(2*sigma_workers**2))/(np.sqrt(np.pi)*x*sigma_workers)
+    	
 def Calculate_MSE(data, functions_from_model):
 	'''
 	Given some estimated shape distribution parameters, gives the mean square error related to
@@ -168,8 +169,8 @@ def Calculate_MSE(data, functions_from_model):
 		w_err = np.hstack((w_err, (w_hat-ws[i])**2*weights[i]))
 		pi_err = np.hstack((pi_err, (pi_hat-pis[i])**2*weights[i]))
 
-	mse_w = np.cumsum(w_err)[-1]
-	mse_pi = np.cumsum(pi_err)[-1]	
+	mse_w = np.sum(w_err)
+	mse_pi = np.sum(pi_err)
 
 	'''3. Calculate Mean Square error (THETA DISTRIBUTION)'''
 	#theta_KS = stats.ks_2samp(thetas, thetas_from_model)[0] # NEED TO WRITE
@@ -186,8 +187,6 @@ def Calculate_MSE(data, functions_from_model):
 	sort_thetas = sorted(n_thetas.items(), key=operator.itemgetter(1))
 	theta_range = sorted(thetas_from_model)
 
-	def pdf_workers(x):
-    	return 50.0*np.sqrt(2)*np.exp(-(-0.0 + np.log(x))**2/(2**2))/(np.sqrt(np.pi)*x) #change way the number of workers is inputed!!
 
 	pdf_x = pdf_workers(rxs)         # calculates pdf of xs in one step
 	n_pdf_x = dict(enumerate(pdf_x)) # creates a dictionary where the keys are the #obs of x
@@ -198,15 +197,15 @@ def Calculate_MSE(data, functions_from_model):
 
 	cdf_theta = np.cumsum(pdf_theta)
 	cdf_theta = cdf_theta/cdf_theta[-1]
-	cdf_theta_int = interp1d(np.log(thetas_from_model),cdf_theta)
+	cdf_theta_int = interp1d(np.log(theta_range),cdf_theta)
 
 	theta_err = np.empty(0)
 
 	for i in range(len(pis)):
-		theta_hat = cdf_theta_int(thetas[i])
-		theta_err = np.hstack(theta_err, (theta_hat-cdf_theta_data[i])**2)   #weighting not needed here because already in cdf
+		cdf_hat = cdf_theta_int(thetas[i])
+		theta_err = np.hstack(theta_err, (cdf_hat-cdf_theta_data[i])**2)   #weighting not needed here because already in cdf
 
-	mse_theta = np.cumsum(theta_err)[-1]
+	mse_theta = np.sum(theta_err)
 
 
 	return mse_theta + mse_pi + mse_w
