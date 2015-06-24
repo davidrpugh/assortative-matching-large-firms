@@ -204,7 +204,7 @@ def Calculate_MSE(data, functions_from_model):
 
 	for i in range(len(pis)):
 		theta_hat = cdf_theta_int(thetas[i])
-		theta_err = np.hstack(theta_err, (theta_hat-cdf_theta_data[i])**2*weights[i])
+		theta_err = np.hstack(theta_err, (theta_hat-cdf_theta_data[i])**2)   #weighting not needed here because already in cdf
 
 	mse_theta = np.cumsum(theta_err)[-1]
 
