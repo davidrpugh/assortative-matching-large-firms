@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from scipy import stats
 from scipy.interpolate import PchipInterpolator
+from scipy.interpolate import interp1d
 import numpy as np
 import sympy as sym
 import csv
@@ -8,6 +9,7 @@ import csv
 import inputs
 import models
 import shooting
+import operator
 
 
 
@@ -44,8 +46,7 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini, toleranc
 
 	solver = shooting.ShootingSolver(model=modelA)
 	''' 1.Solve the Model '''
-	solver.solve(ini, tol=tolerance, number_knots=N_knots, integrator=intg,
-        	     atol=1e-12, rtol=1e-9)
+	solver.solve(ini, tol=tolerance, number_knots=N_knots, integrator=intg)
 	
 	''' 2.Check it is truly solved '''
 	if not (solver._converged_firms(1e-6) and solver._converged_firms(1e-6)):
@@ -57,12 +58,13 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini, toleranc
 	thetas = solver.solution['$\\theta(x)$'].values
 	ws = solver.solution['$w(x)$'].values
 	pis_fm = solver.solution['$\\pi(x)$'].values
+	xs_fm = solver.solution.index.values
 
 	''' 4.Interpolate w(theta), pi(theta) '''
-	w_theta = PchipInterpolator(thetas, ws)
-	pi_theta = PchipInterpolator(thetas,pis_fm)
+	w_theta = interp1d(ws, thetas,bounds_error=False,fill_value=1.0)
+	pi_theta = interp1d(pis_fm,thetas,bounds_error=False,fill_value=1.0)
 	
-	return (w_theta, pi_theta, thetas), thetas[-1]
+	return (w_theta, pi_theta, thetas, xs_fm), thetas[-1]
 
 
 def import_data(file_name, ID=True, weights=False, logs=False):
@@ -124,9 +126,10 @@ def import_data(file_name, ID=True, weights=False, logs=False):
     else:
     	return size, wage, profit
 
+def pdf_workers(x, mu_workers=0.0, sigma_workers=1.0):
+    	return np.sqrt(2)*np.exp(-(-mu_workers + np.log(x))**2/(2*sigma_workers**2))/(np.sqrt(np.pi)*x*sigma_workers)
 
-
-def Calculate_MSE(data, functions_from_model):
+def Calculate_MSE(data, functions_from_model,penalty=100):
 	'''
 	Given some estimated shape distribution parameters, gives the mean square error related to
 	the data's fitted distribution.
@@ -137,7 +140,8 @@ def Calculate_MSE(data, functions_from_model):
     ----------
     data:			        (1x4) tuple of ndarrays. Data points to calculate the mse Order: thetas, wages, profits and weights if using.
 	functions_from_model: 	(1x3) tuple of functions and data from the model solution. Order: theta(pi), w(pi), pis from model.
-							Functions must be executable (that is, input a float and return a float)			
+							Functions must be executable (that is, input a float and return a float)
+	penalty :				Penalty for each observation out of the model range that appears in the data			
 
 	Returns
     -------
@@ -150,31 +154,73 @@ def Calculate_MSE(data, functions_from_model):
 	ws = data[1]
 	if len(data)==4:
 		weights = data[3]
+	else
+		weights = np.ones(len(pis))
 
-	w_theta = functions_from_model[0]
-	pi_theta = functions_from_model[1]
+	theta_w = functions_from_model[0]
+	theta_pi = functions_from_model[1]
 	thetas_from_model = functions_from_model[2]
+	xs_from_model = functions_from_model[3]
 
 	'''2. Calculate Mean Square error (REGRESSIONS)'''
 	w_err = np.empty(0)
 	pi_err = np.empty(0)
 
 	for i in range(len(pis)):
-		w_hat = w_theta(thetas[i])
-		pi_hat = pi_theta(thetas[i])
-
-		if len(data)==4:
-			w_err = np.hstack((w_err, (w_hat-ws[i])**2*weights[i]))
-			pi_hat = np.hstack((pi_err, (pi_hat-pis[i])**2*weights[i]))
-
+		# For each wage observation out of range, penalty
+		if theta_w(np.exp(ws[i]))==0.0:
+			w_err = np.hstack((w_err,penalty))	
 		else:
-			w_err = np.hstack((w_err, (w_hat-ws[i])**2))
-			pi_hat = np.hstack((pi_err, (pi_hat-pis[i])**2))
+			w_hat = np.log(theta_w(np.exp(ws[i])))
+			w_err = np.hstack((w_err, (w_hat-ws[i])**2*weights[i]))
+		# For each profit observation out of range, penalty
+		if theta_pi(np.exp(pis[i]))==0.0:			
+			pi_err = np.hstack((pi_err,penalty))
+		else:
+			pi_hat = np.log(theta_pi(np.exp(pis[i])))
+			pi_err = np.hstack((pi_err, (pi_hat-pis[i])**2*weights[i]))
+	# Adding up the errors
+	mse_w = np.sum(w_err)
+	mse_pi = np.sum(pi_err)
 
 	'''3. Calculate Mean Square error (THETA DISTRIBUTION)'''
-	pi_KS = stats.ks_2samp(thetas, thetas_from_model)[0] # NEED TO WRITE
+	# Getting cdf from data
+	cdf_theta_data = []
+	r = 0.0
+	for i in range(len(theta)):
+    	r += thetas[i]*weights[i]
+    	cdf_theta_data.append(r)  #calculates cdf of theta 
 
-	return np.sum(w_err+theta_err) + pi_KS
+    cdf_theta_data = cdf_theta_data/cdf_theta_data[-1] #normalise to 1
+
+    # getting size distribution from model
+    # Sorting the thetas
+    n_thetas = dict(zip(list(map(str, range(0,1000))),thetas_from_model))
+	sort_thetas = sorted(n_thetas.items(), key=operator.itemgetter(1))
+	theta_range = sorted(thetas_from_model)
+
+	# Using the pdf of workers
+	pdf_x = pdf_workers(xs_from_model)        	# calculates pdf of xs in one step
+	n_pdf_x = dict(enumerate(pdf_x)) 			# creates a dictionary where the keys are the #obs of x
+	pdf_theta_hat = np.empty(0)
+	for pair in sort_thetas:
+    	index = int(pair[0])
+    	pdf_theta_hat  = np.hstack((pdf_theta_hat ,(n_pdf_x[index]/pair[1])))
+
+	cdf_theta_hat  = np.cumsum(pdf_theta_hat )			# Backing up model cdf
+	cdf_theta_hat  = cdf_theta_hat /cdf_theta_hat [-1] 	# Normilization of the model cdf
+	cdf_theta_int = interp1d(np.log(theta_range),cdf_theta_hat)
+
+	# Calculate the error
+	theta_err = np.empty(0)
+	for i in range(len(pis)):
+		cdf_hat = cdf_theta_int(thetas[i])
+		theta_err = np.hstack(theta_err, (cdf_hat-cdf_theta_data[i])**2)   #weighting not needed here because already in cdf
+
+	mse_theta = np.sum(theta_err)
+
+
+	return mse_theta + mse_pi + mse_w
 
 
 def StubbornObjectiveFunction(params, data, x_pam, x_bounds, y_pam, y_bounds, guess):
