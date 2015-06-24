@@ -58,14 +58,14 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini, toleranc
 	ws = solver.solution['$w(x)$'].values
 	pis_fm = solver.solution['$\\pi(x)$'].values
 
-	''' 4.Interpolate mu(x), theta(x), w(x) '''
-	theta_pi = PchipInterpolator(pis_fm, thetas)
-	w_pi = PchipInterpolator(pis_fm, ws)
+	''' 4.Interpolate w(theta), pi(theta) '''
+	w_theta = PchipInterpolator(thetas, ws)
+	pi_theta = PchipInterpolator(thetas,pis_fm)
 	
-	return (theta_pi, w_pi, thetas), thetas[-1]
+	return (w_theta, pi_theta, thetas), thetas[-1]
 
 
-def import_data(file_name, ID=True, weights=False):
+def import_data(file_name, ID=True, weights=False, logs=False):
     '''
     This function imports the data from a csv file, returns ndarrays with it
 
@@ -74,10 +74,13 @@ def import_data(file_name, ID=True, weights=False):
 
     file_name : (str) path and name of the csv file.
     ID (optional) : boolean, True if it contais ID in the first collunm
+    weights : True if the data includes a weights column in the end
+    logs: if the data is in logs (True) or in levels (False)
 
     Output
     ------
-    Following np.ndarrays: profit (float), size (float), wage (float)
+    Following np.ndarrays: profit (float), size (float), wage (float) (all in logs)
+
     '''
     # Opening data
     with open(file_name, 'rb') as f:
@@ -99,13 +102,21 @@ def import_data(file_name, ID=True, weights=False):
         if weights:
         	wgts.append(float(row[4-c]))
 
-
-    # Firm size in workers (int)
-    size = np.asarray(size)
-    # Daily average wage for each firm, in euros (float)
-    wage = np.asarray(wage)
-    # Declared average profits for each firm per year, in euros (float)
-    profit = np.asarray(profit)
+    if logs==False:
+    	# Firm size in LOG workers (float)
+    	size = np.log(np.array(size))
+    	# Daily LOG average wage for each firm, in euros (float)
+    	wage = np.log(np.array(wage))
+    	# Declared LOG average profits for each firm per year, in euros (float)
+    	profit = np.log(np.array(profit))
+    else:
+    	# Firm size in workers (int)
+    	size = np.asarray(size)
+    	# Daily average wage for each firm, in euros (float)
+    	wage = np.asarray(wage)
+    	# Declared average profits for each firm per year, in euros (float)
+    	profit = np.asarray(profit)
+    # In any case, weights should be the same
     wgts = np.array(wgts)
 
     if weights:
@@ -124,7 +135,7 @@ def Calculate_MSE(data, functions_from_model):
 
 	Parameters
     ----------
-    data:			        (1x4) tuple of ndarrays. Data points to calculate the mse Order: pi, theta, w.
+    data:			        (1x4) tuple of ndarrays. Data points to calculate the mse Order: thetas, wages, profits and weights if using.
 	functions_from_model: 	(1x3) tuple of functions and data from the model solution. Order: theta(pi), w(pi), pis from model.
 							Functions must be executable (that is, input a float and return a float)			
 
@@ -140,35 +151,123 @@ def Calculate_MSE(data, functions_from_model):
 	if len(data)==4:
 		weights = data[3]
 
-	theta_pi = functions_from_model[0]
-	w_pi = functions_from_model[1]
+	w_theta = functions_from_model[0]
+	pi_theta = functions_from_model[1]
 	thetas_from_model = functions_from_model[2]
 
-	'''2. Calculate Mean Square error'''
-	prueba = np.empty(0)
-	prueba = np.hstack((prueba, 5.0))
-	theta_err = np.empty(0)
+	'''2. Calculate Mean Square error (REGRESSIONS)'''
 	w_err = np.empty(0)
+	pi_err = np.empty(0)
 
 	for i in range(len(pis)):
-		theta_hat = theta_pi(pis[i])
-		w_hat = w_pi(pis[i])
+		w_hat = w_theta(thetas[i])
+		pi_hat = pi_theta(thetas[i])
 
 		if len(data)==4:
-			theta_err = np.hstack((theta_err, (theta_hat-thetas[i])**2*weights[i]))
 			w_err = np.hstack((w_err, (w_hat-ws[i])**2*weights[i]))
+			pi_hat = np.hstack((pi_err, (pi_hat-pis[i])**2*weights[i]))
 
 		else:
-			theta_err = np.hstack((theta_err, (theta_hat-thetas[i])**2))
 			w_err = np.hstack((w_err, (w_hat-ws[i])**2))
+			pi_hat = np.hstack((pi_err, (pi_hat-pis[i])**2))
 
-		
-	pi_KS = stats.ks_2samp(thetas, thetas_from_model)[0]
+	'''3. Calculate Mean Square error (THETA DISTRIBUTION)'''
+	pi_KS = stats.ks_2samp(thetas, thetas_from_model)[0] # NEED TO WRITE
 
 	return np.sum(w_err+theta_err) + pi_KS
 
 
 def StubbornObjectiveFunction(params, data, x_pam, x_bounds, y_pam, y_bounds, guess):
+	"""
+	Calculates the sum of squared errors from the model with given parameters.
+
+	Assumes lognormal distribution for both firms and workers.
+
+	In: tuple of 3 parameters
+		tuple of 4 ndarrays with data points for (x, y, theta, w)
+		tuple with mean and variance of the worker distribution
+		tuple with the bounds of the worker distribution
+		tuple with mean and variance of the firm distribution
+		tuple with the bounds of the firm distribution
+
+	Out: Sum of squared residuals
+
+	"""
+	""" 1. Unpack workers and firms distributions """
+	# define some default workers skill
+	x, mu1, sigma1 = sym.var('x, mu1, sigma1')
+	skill_cdf = 0.5 + 0.5 * sym.erf((x - mu1) / sym.sqrt(2 * sigma1**2))
+	skill_params = {'mu1': x_pam[0], 'sigma1': x_pam[1]}
+	skill_bounds = [x_bounds[0], x_bounds[1]]
+
+	workers = inputs.Input(var=x,
+                           cdf=skill_cdf,
+                       		params=skill_params,
+                       		bounds=skill_bounds,
+                      		)
+
+	# define some default firms
+	y, mu2, sigma2 = sym.var('y, mu2, sigma2')
+	productivity_cdf = 0.5 + 0.5 * sym.erf((y - mu2) / sym.sqrt(2 * sigma2**2))
+	productivity_params = {'mu2': y_pam[0], 'sigma2': y_pam[1]}
+	productivity_bounds = [y_bounds[0], y_bounds[1]]
+
+	firms = inputs.Input(var=y,
+    	                 cdf=productivity_cdf,
+        	             params=productivity_params,
+            	         bounds=productivity_bounds,
+                	     )
+	""" 2. Unpack params and define the production function (MS) """
+	# CES between x and y
+	omega_A, sigma_A, Big_A = sym.var('omega_A, sigma_A, Big_A')
+	A = ((omega_A * x**((sigma_A - 1) / sigma_A) + 
+    	 (1 - omega_A) * y**((sigma_A - 1) / sigma_A))**(sigma_A / (sigma_A - 1))) 
+
+	# Cobb-Douglas between l and r
+	l, r, omega_B = sym.var('l, r, omega_B')
+	B = l**omega_B * r**(1 - omega_B)
+
+	F = Big_A * A * B
+
+	F_params = {'omega_A':params[0], 'omega_B':params[1], 'sigma_A':params[2], 'Big_A':params[3]}
+
+	""" 3. Solve the model """
+	try:
+		sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess)		
+	except AssertionError:
+		try: 
+			sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'vode', guess)
+		except AssertionError:
+			try: 
+				sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'dopri5', guess)					 
+			except AssertionError:
+				try: 
+					sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess/100.0)
+				except AssertionError:
+					try: 
+						sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess*100.0)
+					except AssertionError, e:
+						print "OK JUST LEAVE IT", params, "error:", e
+						return 400000.00
+	except ValueError, e:
+		print "Wooops! ", params, e
+		try:
+			sol = Solve_Model2(F, F_params, workers, firms, 'negative', 6000.0, 'lsoda', guess)			
+		except ValueError, e:
+			print "OK JUST LEAVE IT", params, "error:", e
+			return 4000000.00
+
+	""" 4. Calculate and return """				 	
+	theta_pi, w_pi, thetas = sol[0]
+	guess = sol[1]	
+	mse = Calculate_MSE(data, (theta_pi, w_pi, thetas) )
+	print mse, params
+	return mse
+
+
+
+
+def StubbornObjectiveFunction2(params, data, x_pam, x_bounds, y_pam, y_bounds, guess):
 	"""
 	Calculates the sum of squared errors from the model with given parameters.
 
