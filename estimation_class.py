@@ -19,8 +19,21 @@ import shooting
 import operator
 
 class HTWF_Estimation(object):
-
-	def __init__(self, x_pam, x_bounds, y_pam, y_bounds, x_scaling):
+	'''
+	Call the Instructions() function for help.
+	'''
+	def __init__(self, x_pam, x_bounds, y_pam, y_bounds, x_scaling, yearly_w=None):
+		'''
+		Inputs:
+		x_pam: tuple or list, with floats mu1 and sigma1.
+		x_bounds: tuple or list, with floats x.lower and x.upper.
+		y_pam: tuple or list, with floats mu2 and sigma2.
+		y_bounds: tuple or list, with y.lower and y.upper.
+		x_scaling: float, average workers per firm, to scale up the size of x.
+				   May change in the future to make it endogenous.
+		yearly_w: (optional) boolean, True if the wages need to be "annualized". 
+				  To be applied while importing data
+		'''
 
 		self.x_pam = x_pam
 		self.x_bounds = x_bounds
@@ -35,6 +48,17 @@ class HTWF_Estimation(object):
 		self.data = None
 
 		self.ready = False
+		self.yearly = yearly_w
+
+	def Instructions(self):
+		inst1 = 'Step 1. Call InitializeFunction() to get the production function stored.'
+		inst2 = "Step 2. Call import_data('datafile') to get the data stored."
+		inst2b = "      (if you need the wages to be annulized, when creating" 
+		inst2c = "	     the HTWF_Estimation instance add yearly_w=True at the end)"
+		inst3 = "Step 3. You are ready to go! Call StubbornObjectiveFunction with your initial set of parameters (4),"
+		inst3b = "       number of grid points, tolerance, and a big initial guess for the firm)"
+		for ins in [inst1,inst2,inst2b,inst2c,inst3,inst3b]:
+			print ins
 
 	def InitializeFunction(self):
 		'''
@@ -134,6 +158,9 @@ class HTWF_Estimation(object):
 	    # In any case, weights should be the same
 	    wgts = np.array(wgts)
 
+	    if self.yearly == True:
+	    	wage = np.log(np.exp(wage)*360) # ANNUAL wage
+
 	    if weights:
 	    	self.data = (size, wage, profit, wgts)
 	    else:
@@ -171,7 +198,6 @@ class HTWF_Estimation(object):
 		workers= self.workers 
 		firms=self.firms
 
-		flag_solver = False
 		modelA = models.Model(assortativity='positive',
 	    	                 workers=workers,
 	        	             firms=firms,
@@ -183,10 +209,8 @@ class HTWF_Estimation(object):
 		solver.solve(ini, tol=tolerance, number_knots=N_knots, integrator=intg)
 		
 		''' 2.Check it is truly solved '''
-		if not (solver._converged_firms(tolerance) and solver._converged_firms(tolerance)):
-			flag_solver = True
 		err_mesg = ("Fail to solve!")
-	   	assert (solver._converged_firms(tolerance) and solver._converged_firms(tolerance)), err_mesg
+	   	assert (solver._converged_firms(tolerance) and solver._converged_workers(tolerance)), err_mesg
 
 	   	''' 3.Store vectors of results '''
 		thetas = solver.solution['$\\theta(x)$'].values
