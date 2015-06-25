@@ -9,6 +9,7 @@ from __future__ import division
 from scipy import stats
 from scipy.interpolate import PchipInterpolator
 from scipy.interpolate import interp1d
+from matplotlib import pyplot as plt
 import numpy as np
 import sympy as sym
 import csv
@@ -22,7 +23,7 @@ class HTWF_Estimation(object):
 	'''
 	Call the Instructions() function for help.
 	'''
-	def __init__(self, x_pam, x_bounds, y_pam, y_bounds, x_scaling, yearly_w=None):
+	def __init__(self, x_pam, x_bounds, y_pam, y_bounds, x_scaling, yearly_w=False, change_weight=False):
 		'''
 		Inputs:
 		x_pam: tuple or list, with floats mu1 and sigma1.
@@ -32,6 +33,8 @@ class HTWF_Estimation(object):
 		x_scaling: float, average workers per firm, to scale up the size of x.
 				   May change in the future to make it endogenous.
 		yearly_w: (optional) boolean, True if the wages need to be "annualized". 
+				  To be applied while importing data
+		change_weight: (optional) boolean, True if data weights need to be "normalized". 
 				  To be applied while importing data
 		'''
 
@@ -49,6 +52,7 @@ class HTWF_Estimation(object):
 
 		self.ready = False
 		self.yearly = yearly_w
+		self.change_weight = change_weight
 
 	def Instructions(self):
 		inst1 = 'Step 1. Call InitializeFunction() to get the production function stored.'
@@ -66,7 +70,7 @@ class HTWF_Estimation(object):
 		'''
 		# define some default workers skill
 		x, mu1, sigma1 = sym.var('x, mu1, sigma1')
-		skill_cdf = self.x_scaling*0.5 + 0.5 * sym.erf((x - mu1) / sym.sqrt(2 * sigma1**2))
+		skill_cdf = self.x_scaling*(0.5 + 0.5 * sym.erf((x - mu1) / sym.sqrt(2 * sigma1**2)))
 		skill_params = {'mu1': self.x_pam[0], 'sigma1': self.x_pam[1]}
 		skill_bounds = [self.x_bounds[0], self.x_bounds[1]]
 
@@ -160,6 +164,9 @@ class HTWF_Estimation(object):
 
 	    if self.yearly == True:
 	    	wage = np.log(np.exp(wage)*360) # ANNUAL wage
+
+	    if self.change_weight==True:
+	    	wgts = wgts/np.sum(wgts)*len(wgts)
 
 	    if weights:
 	    	self.data = (size, wage, profit, wgts)
@@ -267,14 +274,14 @@ class HTWF_Estimation(object):
 			# For each wage observation out of range, penalty
 			if theta_w(np.exp(ws[i]))==-99.0:
 				#print 'w out of range'
-				w_err = np.hstack((w_err,penalty))	
+				w_err = np.hstack((w_err,penalty*weights[i]))	
 			else:
 				w_hat = np.log(theta_w(np.exp(ws[i])))
 				w_err = np.hstack((w_err, (w_hat-thetas[i])**2*weights[i]))
 			# For each profit observation out of range, penalty
 			if theta_pi(np.exp(pis[i]))==-99.0:
 				#print 'pi out of range'			
-				pi_err = np.hstack((pi_err,penalty))
+				pi_err = np.hstack((pi_err,penalty*weights[i]))
 			else:
 				pi_hat = np.log(theta_pi(np.exp(pis[i])))
 				pi_err = np.hstack((pi_err, (pi_hat-thetas[i])**2*weights[i]))
@@ -315,7 +322,7 @@ class HTWF_Estimation(object):
 		for i in range(len(pis)):
 			cdf_hat = cdf_theta_int(thetas[i])
 			if cdf_hat == -99.0:
-				theta_err = np.hstack((theta_err, penalty))
+				theta_err = np.hstack((theta_err, penalty*weights[i]))
 			else:
 				theta_err = np.hstack((theta_err, (cdf_hat-cdf_theta_data[i])**2))   #weighting not needed here because already in cdf
 
@@ -382,5 +389,68 @@ class HTWF_Estimation(object):
 		mse = self.Calculate_MSE(self.data, functions_model)
 		print mse, params
 		return mse
+
+	def get_cdf(thetas_from_model,xs_from_model):
+	
+		n_thetas = dict(zip(list(map(str, range(0,len(thetas_from_model)))),thetas_from_model))
+		sort_thetas = sorted(n_thetas.items(), key=operator.itemgetter(1))
+		theta_range = sorted(thetas_from_model)
+
+		# Using the pdf of workers
+		pdf_x = pdf_workers(xs_from_model)        	# calculates pdf of xs in one step
+		n_pdf_x = dict(enumerate(pdf_x)) 			# creates a dictionary where the keys are the #obs of x
+		pdf_theta_hat = np.empty(0)
+		for pair in sort_thetas:
+			index = int(pair[0])
+			pdf_theta_hat  = np.hstack((pdf_theta_hat ,(n_pdf_x[index]/pair[1])))
+
+		cdf_theta_hat  = np.cumsum(pdf_theta_hat )			# Backing up model cdf
+		cdf_theta_hat  = cdf_theta_hat /cdf_theta_hat[-1] 	# Normilization of the model cdf
+		cdf_theta_int = interp1d(np.log(theta_range),cdf_theta_hat,bounds_error=False)
+	
+		return cdf_theta_int
+
+	def Plot_data(self):
+		# Check data is in!
+		err_mesg = ("Need to import data first!")
+		assert self.data != None, err_mesg
+		# Uncompress data
+		theta, wage, profit = self.data
+		cdf_theta_data = []
+		r = 0.0
+		for i in range(len(theta)):
+		    r += theta[i]
+		    cdf_theta_data.append(r)
+		cdf_theta_data = np.array(cdf_theta_data)/cdf_theta_data[-1]
+
+		#w_theta = functions_f_model[0]
+		#pi_theta = functions_f_model[1]
+		#thetas = functions_f_model[2]
+		#xs_fm = functions_f_model[3]
+
+		#cdf_model = get_cdf(thetas, xs_fm)
+
+		plt.figure(figsize=(15,5))
+		plt.suptitle('Data Plot', fontsize=20)
+		#plt.suptitle('Best Fit of the day', fontsize=20)
+		plt.subplot(131)
+		plt.scatter(wage,theta, marker='x')
+		#plt.plot(wage,np.log(w_theta(np.exp(wage))))
+		plt.xlabel('$w$', fontsize=18)
+		plt.ylabel('$\\theta$', fontsize=18)
+
+		plt.subplot(132)
+		plt.scatter(profit,theta, marker='x', color='r')
+		#plt.plot(profit,np.log(pi_theta(np.exp(profit))))
+		plt.xlabel('$\\pi$', fontsize=18)
+		plt.ylabel('$\\theta$', fontsize=18)
+
+		plt.subplot(133)
+		plt.plot(theta, cdf_theta_data, color='g')
+		#plt.plot(theta,cdf_model(theta))
+		plt.ylabel('$cdf(\\theta)$', fontsize=18)
+		plt.xlabel('$\\theta$', fontsize=18)
+
+		plt.show()
 
 

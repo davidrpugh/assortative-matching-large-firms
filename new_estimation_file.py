@@ -167,14 +167,14 @@ def Calculate_MSE(data, functions_from_model,penalty=100):
 		# For each wage observation out of range, penalty
 		if theta_w(np.exp(ws[i]))==-99.0:
 			#print 'w out of range'
-			w_err = np.hstack((w_err,penalty))	
+			w_err = np.hstack((w_err,penalty*weights[i]))	
 		else:
 			w_hat = np.log(theta_w(np.exp(ws[i])))
 			w_err = np.hstack((w_err, (w_hat-thetas[i])**2*weights[i]))
 		# For each profit observation out of range, penalty
 		if theta_pi(np.exp(pis[i]))==-99.0:
 			#print 'pi out of range'			
-			pi_err = np.hstack((pi_err,penalty))
+			pi_err = np.hstack((pi_err,penalty*weights[i]))
 		else:
 			pi_hat = np.log(theta_pi(np.exp(pis[i])))
 			pi_err = np.hstack((pi_err, (pi_hat-thetas[i])**2*weights[i]))
@@ -215,7 +215,7 @@ def Calculate_MSE(data, functions_from_model,penalty=100):
 	for i in range(len(pis)):
 		cdf_hat = cdf_theta_int(thetas[i])
 		if cdf_hat == -99.0:
-			theta_err = np.hstack((theta_err, penalty))
+			theta_err = np.hstack((theta_err, penalty*weights[i]))
 		else:
 			theta_err = np.hstack((theta_err, (cdf_hat-cdf_theta_data[i])**2))   #weighting not needed here because already in cdf
 
@@ -226,7 +226,7 @@ def Calculate_MSE(data, functions_from_model,penalty=100):
 	return mse_theta + mse_pi + mse_w
 
 
-def StubbornObjectiveFunction(params, data, grid_points, tol_i, guess):
+def StubbornObjectiveFunction(params, data, stuff, grid_points, tol_i, guess):
 	"""
 	Calculates the sum of squared errors from the model with given parameters.
 
@@ -241,7 +241,9 @@ def StubbornObjectiveFunction(params, data, grid_points, tol_i, guess):
 	"""
 	# Unpack params
 	F_params = {'omega_A':params[0], 'omega_B':params[1], 'sigma_A':params[2], 'Big_A':params[3]}
-
+	F = stuff[0]
+	workers = stuff[1]
+	firms = stuff[2]
 	""" 3. Solve the model """
 	try:
 		sol = Solve_Model(F, F_params, workers, firms, 'positive', grid_points, 'lsoda', guess, tolerance=tol_i)		
