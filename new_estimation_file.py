@@ -37,7 +37,6 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini, toleranc
 	A tutple consisting on (theta(x), w(x), pis_from_model), final result from 
 
 	"""
-	flag_solver = False
 	modelA = models.Model(assortativity=ass,
     	                 workers=workers,
         	             firms=firms,
@@ -49,10 +48,8 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini, toleranc
 	solver.solve(ini, tol=tolerance, number_knots=N_knots, integrator=intg)
 	
 	''' 2.Check it is truly solved '''
-	if not (solver._converged_firms(tolerance) and solver._converged_firms(tolerance)):
-		flag_solver = True
 	err_mesg = ("Fail to solve!")
-   	assert (solver._converged_firms(tolerance) and solver._converged_firms(tolerance)), err_mesg
+   	assert (solver._converged_firms(tolerance) and solver._converged_workers(tolerance)), err_mesg
 
    	''' 3.Store vectors of results '''
 	thetas = solver.solution['$\\theta(x)$'].values
