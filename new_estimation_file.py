@@ -49,10 +49,10 @@ def Solve_Model(Fnc, F_params, workers, firms, ass, N_knots, intg, ini, toleranc
 	solver.solve(ini, tol=tolerance, number_knots=N_knots, integrator=intg)
 	
 	''' 2.Check it is truly solved '''
-	if not (solver._converged_firms(1e-6) and solver._converged_firms(1e-6)):
+	if not (solver._converged_firms(tolerance) and solver._converged_firms(tolerance)):
 		flag_solver = True
 	err_mesg = ("Fail to solve!")
-   	assert (solver._converged_firms(1e-6) and solver._converged_firms(1e-6)), err_mesg
+   	assert (solver._converged_firms(tolerance) and solver._converged_firms(tolerance)), err_mesg
 
    	''' 3.Store vectors of results '''
 	thetas = solver.solution['$\\theta(x)$'].values
@@ -139,7 +139,7 @@ def Calculate_MSE(data, functions_from_model,penalty=100):
 	Parameters
     ----------
     data:			        (1x4) tuple of ndarrays. Data points to calculate the mse Order: thetas, wages, profits and weights if using.
-	functions_from_model: 	(1x3) tuple of functions and data from the model solution. Order: theta(pi), w(pi), pis from model.
+	functions_from_model: 	(1x3) tuple of functions and data from the model solution. Order: theta(pi), w(pi), thetas from model, xs from model.
 							Functions must be executable (that is, input a float and return a float)
 	penalty :				Penalty for each observation out of the model range that appears in the data			
 
@@ -169,16 +169,18 @@ def Calculate_MSE(data, functions_from_model,penalty=100):
 	for i in range(len(pis)):
 		# For each wage observation out of range, penalty
 		if theta_w(np.exp(ws[i]))==-99.0:
-			w_err = np.hstack((w_err,penalty*weights[i]))	
+			#print 'w out of range'
+			w_err = np.hstack((w_err,penalty))	
 		else:
 			w_hat = np.log(theta_w(np.exp(ws[i])))
-			w_err = np.hstack((w_err, (w_hat-ws[i])**2*weights[i]))
+			w_err = np.hstack((w_err, (w_hat-thetas[i])**2*weights[i]))
 		# For each profit observation out of range, penalty
-		if theta_pi(np.exp(pis[i]))==-99.0:	
-			pi_err = np.hstack((pi_err,penalty*weights[i]))
+		if theta_pi(np.exp(pis[i]))==-99.0:
+			#print 'pi out of range'			
+			pi_err = np.hstack((pi_err,penalty))
 		else:
 			pi_hat = np.log(theta_pi(np.exp(pis[i])))
-			pi_err = np.hstack((pi_err, (pi_hat-pis[i])**2*weights[i]))
+			pi_err = np.hstack((pi_err, (pi_hat-thetas[i])**2*weights[i]))
 	# Adding up the errors
 	mse_w = np.sum(w_err)
 	mse_pi = np.sum(pi_err)
@@ -195,7 +197,7 @@ def Calculate_MSE(data, functions_from_model,penalty=100):
 
     # getting size distribution from model
     # Sorting the thetas
-	n_thetas = dict(zip(list(map(str, range(0,1000))),thetas_from_model))
+	n_thetas = dict(zip(list(map(str, range(0,len(thetas_from_model)))),thetas_from_model))
 	sort_thetas = sorted(n_thetas.items(), key=operator.itemgetter(1))
 	theta_range = sorted(thetas_from_model)
 
@@ -216,189 +218,60 @@ def Calculate_MSE(data, functions_from_model,penalty=100):
 	for i in range(len(pis)):
 		cdf_hat = cdf_theta_int(thetas[i])
 		if cdf_hat == -99.0:
-			theta_err = np.hstack((theta_err,penalty))
+			theta_err = np.hstack((theta_err, penalty))
 		else:
 			theta_err = np.hstack((theta_err, (cdf_hat-cdf_theta_data[i])**2))   #weighting not needed here because already in cdf
 
 	mse_theta = np.sum(theta_err)
 
-	print mse_theta, mse_pi, mse_w
+	print 'errors:',mse_theta, mse_pi, mse_w
+
 	return mse_theta + mse_pi + mse_w
 
 
-def StubbornObjectiveFunction(params, data, x_pam, x_bounds, y_pam, y_bounds, guess):
+def StubbornObjectiveFunction(params, data, grid_points, tol_i, guess):
 	"""
 	Calculates the sum of squared errors from the model with given parameters.
 
 	Assumes lognormal distribution for both firms and workers.
 
-	In: tuple of 3 parameters
-		tuple of 4 ndarrays with data points for (x, y, theta, w)
-		tuple with mean and variance of the worker distribution
-		tuple with the bounds of the worker distribution
-		tuple with mean and variance of the firm distribution
-		tuple with the bounds of the firm distribution
+	In: (1x4) tuple containing: (omega_A, omega_B, sigma, Big_A)
+		(1x4) tuple of ndarrays: thetas, wages, profits and weights if using.
+
 
 	Out: Sum of squared residuals
 
 	"""
-	""" 1. Unpack workers and firms distributions """
-	# define some default workers skill
-	x, mu1, sigma1 = sym.var('x, mu1, sigma1')
-	skill_cdf = 0.5 + 0.5 * sym.erf((x - mu1) / sym.sqrt(2 * sigma1**2))
-	skill_params = {'mu1': x_pam[0], 'sigma1': x_pam[1]}
-	skill_bounds = [x_bounds[0], x_bounds[1]]
-
-	workers = inputs.Input(var=x,
-                           cdf=skill_cdf,
-                       		params=skill_params,
-                       		bounds=skill_bounds,
-                      		)
-
-	# define some default firms
-	y, mu2, sigma2 = sym.var('y, mu2, sigma2')
-	productivity_cdf = 0.5 + 0.5 * sym.erf((y - mu2) / sym.sqrt(2 * sigma2**2))
-	productivity_params = {'mu2': y_pam[0], 'sigma2': y_pam[1]}
-	productivity_bounds = [y_bounds[0], y_bounds[1]]
-
-	firms = inputs.Input(var=y,
-    	                 cdf=productivity_cdf,
-        	             params=productivity_params,
-            	         bounds=productivity_bounds,
-                	     )
-	""" 2. Unpack params and define the production function (MS) """
-	# CES between x and y
-	omega_A, sigma_A, Big_A = sym.var('omega_A, sigma_A, Big_A')
-	A = ((omega_A * x**((sigma_A - 1) / sigma_A) + 
-    	 (1 - omega_A) * y**((sigma_A - 1) / sigma_A))**(sigma_A / (sigma_A - 1))) 
-
-	# Cobb-Douglas between l and r
-	l, r, omega_B = sym.var('l, r, omega_B')
-	B = l**omega_B * r**(1 - omega_B)
-
-	F = Big_A * A * B
-
+	# Unpack params
 	F_params = {'omega_A':params[0], 'omega_B':params[1], 'sigma_A':params[2], 'Big_A':params[3]}
 
 	""" 3. Solve the model """
 	try:
-		sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess)		
+		sol = Solve_Model(F, F_params, workers, firms, 'positive', grid_points, 'lsoda', guess, tolerance=tol_i)		
 	except AssertionError:
 		try: 
-			sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'vode', guess)
+			sol = Solve_Model(F, F_params, workers, firms, 'positive', grid_points, 'vode', guess, tolerance=tol_i)
 		except AssertionError:
 			try: 
-				sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'dopri5', guess)					 
+				sol = Solve_Model(F, F_params, workers, firms, 'positive', grid_points, 'lsoda', guess*100.0, tolerance=tol_i)					 
 			except AssertionError:
 				try: 
-					sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess/100.0)
+					sol = Solve_Model(F, F_params, workers, firms, 'positive', grid_points, 'lsoda', guess/100.0, tolerance=tol_i)
 				except AssertionError:
-					try: 
-						sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess*100.0)
-					except AssertionError, e:
-						print "OK JUST LEAVE IT", params, "error:", e
-						return 400000.00
-	except ValueError, e:
-		print "Wooops! ", params, e
-		try:
-			sol = Solve_Model2(F, F_params, workers, firms, 'negative', 6000.0, 'lsoda', guess)			
-		except ValueError, e:
-			print "OK JUST LEAVE IT", params, "error:", e
-			return 4000000.00
+					try:
+						sol = Solve_Model(F, F_params, workers, firms, 'positive', grid_points, 'lsoda', guess, tolerance=tol_i*10)
+					except AssertionError:
+						try: 
+							sol = Solve_Model(F, F_params, workers, firms, 'positive', grid_points*1.5, 'lsoda', guess, tolerance=tol_i)
+						except AssertionError, e:
+							print "OK JUST LEAVE IT", params, "error:", e
+							return 400000.00
 
 	""" 4. Calculate and return """				 	
-	theta_pi, w_pi, thetas = sol[0]
+	functions_model = sol[0]
 	guess = sol[1]	
-	mse = Calculate_MSE(data, (theta_pi, w_pi, thetas) )
+	mse = Calculate_MSE(data, functions_model)
 	print mse, params
 	return mse
 
 
-
-
-def StubbornObjectiveFunction2(params, data, x_pam, x_bounds, y_pam, y_bounds, guess):
-	"""
-	Calculates the sum of squared errors from the model with given parameters.
-
-	Assumes lognormal distribution for both firms and workers.
-
-	In: tuple of 3 parameters
-		tuple of 4 ndarrays with data points for (x, y, theta, w)
-		tuple with mean and variance of the worker distribution
-		tuple with the bounds of the worker distribution
-		tuple with mean and variance of the firm distribution
-		tuple with the bounds of the firm distribution
-
-	Out: Sum of squared residuals
-
-	"""
-	""" 1. Unpack workers and firms distributions """
-	# define some default workers skill
-	x, mu1, sigma1 = sym.var('x, mu1, sigma1')
-	skill_cdf = 0.5 + 0.5 * sym.erf((x - mu1) / sym.sqrt(2 * sigma1**2))
-	skill_params = {'mu1': x_pam[0], 'sigma1': x_pam[1]}
-	skill_bounds = [x_bounds[0], x_bounds[1]]
-
-	workers = inputs.Input(var=x,
-                           cdf=skill_cdf,
-                       		params=skill_params,
-                       		bounds=skill_bounds,
-                      		)
-
-	# define some default firms
-	y, mu2, sigma2 = sym.var('y, mu2, sigma2')
-	productivity_cdf = 0.5 + 0.5 * sym.erf((y - mu2) / sym.sqrt(2 * sigma2**2))
-	productivity_params = {'mu2': y_pam[0], 'sigma2': y_pam[1]}
-	productivity_bounds = [y_bounds[0], y_bounds[1]]
-
-	firms = inputs.Input(var=y,
-    	                 cdf=productivity_cdf,
-        	             params=productivity_params,
-            	         bounds=productivity_bounds,
-                	     )
-	""" 2. Unpack params and define the production function (MS) """
-	# CES between x and y
-	omega_A, sigma_A, Big_A = sym.var('omega_A, sigma_A, Big_A')
-	A = ((omega_A * x**((sigma_A - 1) / sigma_A) + 
-    	 (1 - omega_A) * y**((sigma_A - 1) / sigma_A))**(sigma_A / (sigma_A - 1))) 
-
-	# Cobb-Douglas between l and r
-	l, r, omega_B = sym.var('l, r, omega_B')
-	B = l**omega_B * r**(1 - omega_B)
-
-	F = Big_A * A * B
-
-	F_params = {'omega_A':params[0], 'omega_B':params[1], 'sigma_A':params[2], 'Big_A':params[3]}
-
-	""" 3. Solve the model """
-	try:
-		sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess)		
-	except AssertionError:
-		try: 
-			sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'vode', guess)
-		except AssertionError:
-			try: 
-				sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'dopri5', guess)					 
-			except AssertionError:
-				try: 
-					sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess/100.0)
-				except AssertionError:
-					try: 
-						sol = Solve_Model2(F, F_params, workers, firms, 'positive', 6000.0, 'lsoda', guess*100.0)
-					except AssertionError, e:
-						print "OK JUST LEAVE IT", params, "error:", e
-						return 400000.00
-	except ValueError, e:
-		print "Wooops! ", params, e
-		try:
-			sol = Solve_Model2(F, F_params, workers, firms, 'negative', 6000.0, 'lsoda', guess)			
-		except ValueError, e:
-			print "OK JUST LEAVE IT", params, "error:", e
-			return 4000000.00
-
-	""" 4. Calculate and return """				 	
-	theta_pi, w_pi, thetas = sol[0]
-	guess = sol[1]	
-	mse = Calculate_MSE(data, (theta_pi, w_pi, thetas) )
-	print mse, params
-	return mse
