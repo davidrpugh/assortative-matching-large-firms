@@ -263,6 +263,9 @@ def StubbornObjectiveFunction(params, data, grid_points, tol_i, guess):
 						except AssertionError, e:
 							print "OK JUST LEAVE IT", params, "error:", e
 							return 400000.00
+	except ValueError, e:
+		print "Wrong assortativity ", params, e
+		return 4000000.00
 
 	""" 4. Calculate and return """				 	
 	functions_model = sol[0]
