@@ -54,6 +54,8 @@ class HTWF_Estimation(object):
 		self.yearly = yearly_w
 		self.change_weight = change_weight
 
+		self.current_sol = None
+
 	def Instructions(self):
 		inst1 = 'Step 1. Call InitializeFunction() to get the production function stored.'
 		inst2 = "Step 2. Call import_data('datafile') to get the data stored."
@@ -70,7 +72,7 @@ class HTWF_Estimation(object):
 		'''
 		# define some default workers skill
 		x, mu1, sigma1 = sym.var('x, mu1, sigma1')
-		skill_cdf = self.x_scaling*(0.5 + 0.5 * sym.erf((x - mu1) / sym.sqrt(2 * sigma1**2)))
+		skill_cdf = self.x_scaling*(0.5 + 0.5 * sym.erf((sym.log(x) - mu1) / sym.sqrt(2 * sigma1**2)))
 		skill_params = {'mu1': self.x_pam[0], 'sigma1': self.x_pam[1]}
 		skill_bounds = [self.x_bounds[0], self.x_bounds[1]]
 
@@ -82,7 +84,7 @@ class HTWF_Estimation(object):
 
 		# define some default firms
 		y, mu2, sigma2 = sym.var('y, mu2, sigma2')
-		productivity_cdf = 0.5 + 0.5 * sym.erf((y - mu2) / sym.sqrt(2 * sigma2**2))
+		productivity_cdf = 0.5 + 0.5 * sym.erf((sym.log(y) - mu2) / sym.sqrt(2 * sigma2**2))
 		productivity_params = {'mu2': self.y_pam[0], 'sigma2': self.y_pam[1]}
 		productivity_bounds = [self.y_bounds[0], self.y_bounds[1]]
 
@@ -225,6 +227,7 @@ class HTWF_Estimation(object):
 		pis_fm = solver.solution['$\\pi(x)$'].values
 		xs_fm = solver.solution.index.values
 
+		self.current_sol = solver.solution
 		''' 4.Interpolate w(theta), pi(theta) '''
 		w_theta = interp1d(ws, thetas,bounds_error=False,fill_value=-99.0)
 		pi_theta = interp1d(pis_fm,thetas,bounds_error=False,fill_value=-99.0)
@@ -306,7 +309,7 @@ class HTWF_Estimation(object):
 		theta_range = sorted(thetas_from_model)
 
 		# Using the pdf of workers
-		pdf_x = pdf_workers(xs_from_model)        	# calculates pdf of xs in one step
+		pdf_x = self.pdf_workers(xs_from_model)        	# calculates pdf of xs in one step
 		n_pdf_x = dict(enumerate(pdf_x)) 			# creates a dictionary where the keys are the #obs of x
 		pdf_theta_hat = np.empty(0)
 		for pair in sort_thetas:
@@ -386,7 +389,7 @@ class HTWF_Estimation(object):
 
 		# 4. Calculate and return			 	
 		functions_model = sol
-		mse = self.Calculate_MSE(self.data, functions_model)
+		mse = self.Calculate_MSE(functions_model)
 		print mse, params
 		return mse
 
