@@ -23,19 +23,24 @@ class HTWF_Estimation(object):
 	'''
 	Call the Instructions() function for help.
 	'''
-	def __init__(self, x_pam, x_bounds, y_pam, y_bounds, x_scaling, yearly_w=False, change_weight=False):
+	def __init__(self, x_pam, x_bounds, y_pam, y_bounds, x_scaling):
 		'''
-		Inputs:
+		Puts together an Heterogeneous Workers and Firms model with the parameters especified,
+		imports data to carry on the estimation and estimates the parameters of the model:
+		                       omega_A, omega_B, sigma and Big_A
+
+		Call the Instructions() function to print the condensed user manual.
+
+		Parameters:
+		-------
+
 		x_pam: tuple or list, with floats mu1 and sigma1.
 		x_bounds: tuple or list, with floats x.lower and x.upper.
 		y_pam: tuple or list, with floats mu2 and sigma2.
 		y_bounds: tuple or list, with y.lower and y.upper.
 		x_scaling: float, average workers per firm, to scale up the size of x.
 				   May change in the future to make it endogenous.
-		yearly_w: (optional) boolean, True if the wages need to be "annualized". 
-				  To be applied while importing data
-		change_weight: (optional) boolean, True if data weights need to be "normalized". 
-				  To be applied while importing data
+		
 		'''
 
 		self.x_pam = x_pam
@@ -50,13 +55,15 @@ class HTWF_Estimation(object):
 
 		self.data = None
 
-		self.ready = False
-		self.yearly = yearly_w
-		self.change_weight = change_weight
+		self.ready = False	
 
 		self.current_sol = None
 
 	def Instructions(self):
+		'''
+		Prints the instructions of the HTWF_Estimation class.
+
+		'''
 		inst1 = 'Step 1. Call InitializeFunction() to get the production function stored.'
 		inst2 = "Step 2. Call import_data('datafile') to get the data stored."
 		inst2b = "      (if you need the wages to be annulized, when creating" 
@@ -68,7 +75,10 @@ class HTWF_Estimation(object):
 
 	def InitializeFunction(self):
 		'''
-		Resets workers, firms, production function
+		Resets workers, firms, production function given the parameters especified when creating the instance.
+
+		Needs to be executed before solving the model.
+
 		'''
 		# define some default workers skill
 		x, mu1, sigma1 = sym.var('x, mu1, sigma1')
@@ -110,19 +120,21 @@ class HTWF_Estimation(object):
 		self.F = F
 
 
-	def import_data(self,file_name, ID=True, weights=False, logs=False):
+	def import_data(self,file_name, ID=True, weights=False, logs=False,yearly_w=False, change_weight=False):
 	    '''
 	    This function imports the data from a csv file, returns ndarrays with it
 
-	    Input
+	    Parameters
 	    -----
 
 	    file_name : (str) path and name of the csv file.
 	    ID (optional) : boolean, True if it contais ID in the first collunm
 	    weights : True if the data includes a weights column in the end
 	    logs: if the data is in logs (True) or in levels (False)
+	    yearly_w: (optional) boolean, True if the wages need to be "annualized". 
+		change_weight: (optional) boolean, True if data weights need to be "normalized". 
 
-	    Output
+	    Returns
 	    ------
 	    Following np.ndarrays: profit (float), size (float), wage (float) (all in logs)
 
@@ -156,20 +168,21 @@ class HTWF_Estimation(object):
 	    	profit = np.log(np.array(profit))
 	    else:
 	    	# Firm size in workers (int)
-	    	size = np.asarray(size)
+	    	size = np.array(size)
 	    	# Daily average wage for each firm, in euros (float)
-	    	wage = np.asarray(wage)
+	    	wage = np.array(wage)
 	    	# Declared average profits for each firm per year, in euros (float)
-	    	profit = np.asarray(profit)
+	    	profit = np.array(profit)
 	    # In any case, weights should be the same
 	    wgts = np.array(wgts)
 
-	    if self.yearly == True:
+	    if yearly_w:
 	    	wage = np.log(np.exp(wage)*360) # ANNUAL wage
 
-	    if self.change_weight==True:
+	    if change_weight:
 	    	wgts = wgts/np.sum(wgts)*len(wgts)
 
+	    # Storing results
 	    if weights:
 	    	self.data = (size, wage, profit, wgts)
 	    else:
@@ -177,7 +190,9 @@ class HTWF_Estimation(object):
 
 	def pdf_workers(self,x):
 		'''
-		For a given x returns the corresponding pdf value.
+		For a given x returns the corresponding pdf value, 
+		according to the paramenters especified when creating the instance.
+
 		'''
 	    	return np.sqrt(2)*np.exp(-(-self.x_pam[0] + np.log(x))**2/(2*self.x_pam[1]**2))/(np.sqrt(np.pi)*x*self.x_pam[1])
 
@@ -200,7 +215,11 @@ class HTWF_Estimation(object):
 
 		Returns
 	    -------
-		A tutple consisting on (theta(x), w(x), pis_from_model), final result from 
+		A tutple consisting on: 
+			(theta(w) (scipy.interpolate.interpolate.interp1d), 
+			 theta(pi) scipy.interpolate.interpolate.interp1d, 
+			 thetas from the model (np.array), 
+			 xs from the model(np.array))
 
 		"""
 		Fnc=self.F
@@ -239,21 +258,25 @@ class HTWF_Estimation(object):
 		Given some estimated shape distribution parameters, gives the mean square error related to
 		the data's fitted distribution.
 
-		Must have the module stats imported from scipy!!
+		Must have the data imported!
 
 		Parameters
 	    ----------
 	    data:			        (1x4) tuple of ndarrays. Data points to calculate the mse Order: thetas, wages, profits and weights if using.
 		functions_from_model: 	(1x3) tuple of functions and data from the model solution. Order: theta(pi), w(pi), thetas from model, xs from model.
 								Functions must be executable (that is, input a float and return a float)
-		penalty :				Penalty for each observation out of the model range that appears in the data			
+		penalty :				Penalty for each observation out of the model range that appears in the data (int or float)		
 
 		Returns
 	    -------
-		mse = Mean square errors of fit (tup of floats, one for each n)
-		'''
+		mse = Mean square errors of fit (float)
 
-		'''1. Unpack Data and functions'''
+		'''
+		# Check data is in!
+		err_mesg = ("Need to import data first!")
+		assert self.data != None, err_mesg
+
+		# 1. Unpack Data and functions
 		data = self.data
 
 		pis = data[2]
@@ -269,7 +292,7 @@ class HTWF_Estimation(object):
 		thetas_from_model = functions_from_model[2]
 		xs_from_model = functions_from_model[3]
 
-		'''2. Calculate Mean Square error (REGRESSIONS)'''
+		# 2. Calculate Mean Square error (REGRESSIONS)
 		w_err = np.empty(0)
 		pi_err = np.empty(0)
 
@@ -292,7 +315,7 @@ class HTWF_Estimation(object):
 		mse_w = np.sum(w_err)
 		mse_pi = np.sum(pi_err)
 
-		'''3. Calculate Mean Square error (THETA DISTRIBUTION)'''
+		# 3. Calculate Mean Square error (THETA DISTRIBUTION)
 		# Getting cdf from data
 		cdf_theta_data = []
 		r = 0.0
@@ -346,15 +369,19 @@ class HTWF_Estimation(object):
 		"""
 		Calculates the sum of squared errors from the model with given parameters.
 
-		Assumes lognormal distribution for both firms and workers.
+		Assumes lognormal distribution for both firms and workers, with parameters especified when creating the instance.
 
-		In: (1x4) tuple containing: (omega_A, omega_B, sigma, Big_A)
-			grid_points: float or int
-			tol_i: (float) tolerance
-			guess: (float or int) initial guess
+		Parameters:
+		-----------
+			(1x4) tuple containing: (omega_A, omega_B, sigma, Big_A) (all of them floats)
+			grid_points: number of points in the grid of xs (float or int)
+			tol_i: tolerance for the solver (float) 
+			guess: initial guess for upper firm size (float or int) 
 
 
-		Out: Sum of squared residuals
+		Returns:
+		--------
+			Sum of squared residuals of theta(ws), theta(pis), cdf(theta).
 
 		"""
 		# 1. Check if F and data are stored correctly
@@ -386,6 +413,9 @@ class HTWF_Estimation(object):
 							except AssertionError, e:
 								print "OK JUST LEAVE IT", params, "error:", e
 								return 400000.00
+		except ValueError, e:
+			print "Wrong assortativity ", params, e
+			return 4000000.00
 
 		# 4. Calculate and return			 	
 		functions_model = sol
@@ -394,6 +424,19 @@ class HTWF_Estimation(object):
 		return mse
 
 	def get_cdf(self,thetas_fm,xs_fm):
+		'''
+		Gets the cdf value of a given firm size, by interpolating the implied distribution from the results of solving the model.
+
+		Parameters:
+		-----------
+		thetas_fm: thetas from model (np.array or similar)
+		xs_fm: xs grid points from model (np.array or similar)
+
+		Returns:
+		--------
+		An executable numeric function, that omits values out of range (scipy.interpolate.interpolate.interp1d).
+		
+		'''
 	
 		n_thetas = dict(zip(list(map(str, range(0,len(thetas_fm)))),thetas_fm))
 		sort_thetas = sorted(n_thetas.items(), key=operator.itemgetter(1))
