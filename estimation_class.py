@@ -226,8 +226,8 @@ class HTWF_Estimation(object):
 		ws = solver.solution['$w(x)$'].values
 		pis_fm = solver.solution['$\\pi(x)$'].values
 		xs_fm = solver.solution.index.values
-
 		self.current_sol = solver.solution
+
 		''' 4.Interpolate w(theta), pi(theta) '''
 		w_theta = interp1d(ws, thetas,bounds_error=False,fill_value=-99.0)
 		pi_theta = interp1d(pis_fm,thetas,bounds_error=False,fill_value=-99.0)
@@ -393,14 +393,14 @@ class HTWF_Estimation(object):
 		print mse, params
 		return mse
 
-	def get_cdf(thetas_from_model,xs_from_model):
+	def get_cdf(self,thetas_fm,xs_fm):
 	
-		n_thetas = dict(zip(list(map(str, range(0,len(thetas_from_model)))),thetas_from_model))
+		n_thetas = dict(zip(list(map(str, range(0,len(thetas_fm)))),thetas_fm))
 		sort_thetas = sorted(n_thetas.items(), key=operator.itemgetter(1))
-		theta_range = sorted(thetas_from_model)
+		theta_range = sorted(thetas_fm)
 
 		# Using the pdf of workers
-		pdf_x = pdf_workers(xs_from_model)        	# calculates pdf of xs in one step
+		pdf_x = self.pdf_workers(xs_fm)        	# calculates pdf of xs in one step
 		n_pdf_x = dict(enumerate(pdf_x)) 			# creates a dictionary where the keys are the #obs of x
 		pdf_theta_hat = np.empty(0)
 		for pair in sort_thetas:
@@ -414,6 +414,12 @@ class HTWF_Estimation(object):
 		return cdf_theta_int
 
 	def Plot_data(self):
+		'''
+		Plots the data stored: wages vs sizes, 
+							   profits vs sizes,
+							   cdf(sizes)
+
+		'''
 		# Check data is in!
 		err_mesg = ("Need to import data first!")
 		assert self.data != None, err_mesg
@@ -426,34 +432,74 @@ class HTWF_Estimation(object):
 		    cdf_theta_data.append(r)
 		cdf_theta_data = np.array(cdf_theta_data)/cdf_theta_data[-1]
 
-		#w_theta = functions_f_model[0]
-		#pi_theta = functions_f_model[1]
-		#thetas = functions_f_model[2]
-		#xs_fm = functions_f_model[3]
-
-		#cdf_model = get_cdf(thetas, xs_fm)
-
 		plt.figure(figsize=(15,5))
 		plt.suptitle('Data Plot', fontsize=20)
-		#plt.suptitle('Best Fit of the day', fontsize=20)
 		plt.subplot(131)
 		plt.scatter(wage,theta, marker='x')
-		#plt.plot(wage,np.log(w_theta(np.exp(wage))))
 		plt.xlabel('$w$', fontsize=18)
 		plt.ylabel('$\\theta$', fontsize=18)
 
 		plt.subplot(132)
 		plt.scatter(profit,theta, marker='x', color='r')
-		#plt.plot(profit,np.log(pi_theta(np.exp(profit))))
 		plt.xlabel('$\\pi$', fontsize=18)
 		plt.ylabel('$\\theta$', fontsize=18)
 
 		plt.subplot(133)
 		plt.plot(theta, cdf_theta_data, color='g')
-		#plt.plot(theta,cdf_model(theta))
 		plt.ylabel('$cdf(\\theta)$', fontsize=18)
 		plt.xlabel('$\\theta$', fontsize=18)
 
 		plt.show()
 
+	def Plot_solution(self):
+		'''
+		Plots the data stored and the functions obtained from the last estimation.
+
+		'''
+		# Check data is in!
+		err_mesg = ("Need to import data first!")
+		assert self.data != None, err_mesg
+		# Check the model is solved!
+		err_mesg = ("Need to solve the model first!")
+		assert type(self.current_sol) != None, err_mesg
+		# Uncompress data
+		theta, wage, profit = self.data
+		cdf_theta_data = []
+		r = 0.0
+		for i in range(len(theta)):
+		    r += theta[i]
+		    cdf_theta_data.append(r)
+		cdf_theta_data = np.array(cdf_theta_data)/cdf_theta_data[-1]
+
+		plthetas = self.current_sol['$\\theta(x)$'].values
+		plws = self.current_sol['$w(x)$'].values
+		plpis = self.current_sol['$\\pi(x)$'].values
+		plxs = self.current_sol.index.values
+				
+		''' 4.Interpolate w(theta), pi(theta) '''
+		th_w = interp1d(plws, plthetas,bounds_error=False)
+		th_pi = interp1d(plpis,plthetas,bounds_error=False)
+		cdf_model = self.get_cdf(plthetas,plxs)
+
+		plt.figure(figsize=(15,5))
+		plt.suptitle('Best Fit of the day', fontsize=20)
+		plt.subplot(131)
+		plt.scatter(wage,theta, marker='x')
+		plt.plot(sorted(wage),np.log(th_w(np.exp(sorted(wage)))))
+		plt.xlabel('$w$', fontsize=18)
+		plt.ylabel('$\\theta$', fontsize=18)
+
+		plt.subplot(132)
+		plt.scatter(profit,theta, marker='x', color='r')
+		plt.plot(sorted(profit),np.log(th_pi(np.exp(sorted(profit)))))
+		plt.xlabel('$\\pi$', fontsize=18)
+		plt.ylabel('$\\theta$', fontsize=18)
+
+		plt.subplot(133)
+		plt.plot(theta, cdf_theta_data, color='g')
+		plt.plot(theta,cdf_model(theta))
+		plt.ylabel('$cdf(\\theta)$', fontsize=18)
+		plt.xlabel('$\\theta$', fontsize=18)
+
+		plt.show()
 
