@@ -23,11 +23,11 @@ class HTWF_Estimation(object):
 	'''
 	Call the Instructions() function for help.
 	'''
-	def __init__(self, x_pam, x_bounds, y_pam, y_bounds, x_scaling):
+	def __init__(self, x_pam, x_bounds, y_pam, y_bounds, x_scaling,A_scaling):
 		'''
 		Puts together an Heterogeneous Workers and Firms model with the parameters especified,
 		imports data to carry on the estimation and estimates the parameters of the model:
-		                       omega_A, omega_B, sigma and Big_A
+		                       { omega_A, omega_B, sigma and Big_A }
 
 		Call the Instructions() function to print the condensed user manual.
 
@@ -40,6 +40,7 @@ class HTWF_Estimation(object):
 		y_bounds: tuple or list, with y.lower and y.upper.
 		x_scaling: float, average workers per firm, to scale up the size of x.
 				   May change in the future to make it endogenous.
+		A_scaling: float, scaling parameter for Big_A. To be chosen from the data.
 		
 		'''
 
@@ -47,7 +48,8 @@ class HTWF_Estimation(object):
 		self.x_bounds = x_bounds
 		self.y_pam = y_pam
 		self.y_bounds = y_bounds
-		self.x_scaling = x_scaling 
+		self.x_scaling = x_scaling
+		self.A_scaling = A_scaling 
 		
 		self.F = None
 		self.workers = None
@@ -113,7 +115,7 @@ class HTWF_Estimation(object):
 		l, r, omega_B = sym.var('l, r, omega_B')
 		B = l**omega_B * r**(1 - omega_B)
 
-		F = Big_A * A * B
+		F = (Big_A*self.A_scaling) * A * B
 
 		self.workers = workers
 		self.firms = firms 
@@ -122,7 +124,10 @@ class HTWF_Estimation(object):
 
 	def import_data(self,file_name, ID=True, weights=False, logs=False,yearly_w=False, change_weight=False):
 	    '''
-	    This function imports the data from a csv file, returns ndarrays with it
+	    This function imports the data from a csv file, returns ndarrays with it.
+
+	    It can accomodate for having IDs in the first column, for data not in logs already,
+	 	for weights (normalized or not) and can transform daily to yearly wages.
 
 	    Parameters
 	    -----
@@ -193,6 +198,16 @@ class HTWF_Estimation(object):
 		For a given x returns the corresponding pdf value, 
 		according to the paramenters especified when creating the instance.
 
+		Parameters:
+		-----------
+
+		x: (float or int) a point in x (the distribution of firm size)
+
+		Returns:
+		--------
+
+		pdf(x) (float) according to the parameters of the instance.
+
 		'''
 	    	return np.sqrt(2)*np.exp(-(-self.x_pam[0] + np.log(x))**2/(2*self.x_pam[1]**2))/(np.sqrt(np.pi)*x*self.x_pam[1])
 
@@ -217,7 +232,7 @@ class HTWF_Estimation(object):
 	    -------
 		A tutple consisting on: 
 			(theta(w) (scipy.interpolate.interpolate.interp1d), 
-			 theta(pi) scipy.interpolate.interpolate.interp1d, 
+			 theta(pi) (scipy.interpolate.interpolate.interp1d), 
 			 thetas from the model (np.array), 
 			 xs from the model(np.array))
 
@@ -360,7 +375,12 @@ class HTWF_Estimation(object):
 
 	def Areureadyforthis(self):
 		'''
-		(Need to add some more refined tests)
+		Test if you can go ahead with estimation: you have firms, workers, production function and data ready. (Need to add some more refined tests)
+
+		Returns
+		------
+		True (bool) if it has everything it needs to carry on to the estimation.
+
 		'''
 		if self.F != None and self.workers != None and self.firms != None and self.data != None:
 			self.ready = True
@@ -435,7 +455,7 @@ class HTWF_Estimation(object):
 		Returns:
 		--------
 		An executable numeric function, that omits values out of range (scipy.interpolate.interpolate.interp1d).
-		
+
 		'''
 	
 		n_thetas = dict(zip(list(map(str, range(0,len(thetas_fm)))),thetas_fm))
@@ -458,9 +478,14 @@ class HTWF_Estimation(object):
 
 	def Plot_data(self):
 		'''
-		Plots the data stored: wages vs sizes, 
-							   profits vs sizes,
-							   cdf(sizes)
+		Plots the data stored: 
+			subplot 1: wages vs sizes, size(wages) from the model
+			subplot 2: profits vs sizes, size(wages) from the model
+			subplot 3: cdf(sizes) from the data (green), cdf(sizes) from the model (blue)
+		
+		Returns:
+		--------
+		pyplot plot with the three subplots as specified above.
 
 		'''
 		# Check data is in!
@@ -496,7 +521,14 @@ class HTWF_Estimation(object):
 
 	def Plot_solution(self):
 		'''
-		Plots the data stored and the functions obtained from the last estimation.
+		Plots the data stored and the functions obtained from the last estimation:
+		 	subplot 1: wages vs sizes, size(wages) from the model
+			subplot 2: profits vs sizes, size(wages) from the model
+			subplot 3: cdf(sizes) from the data (green), cdf(sizes) from the model (blue)
+
+		Returns:
+		--------
+		pyplot plot with the three subplots as specified above.
 
 		'''
 		# Check data is in!
