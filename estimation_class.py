@@ -60,6 +60,7 @@ class HTWF_Estimation(object):
 		self.ready = False	
 
 		self.current_sol = None
+		self.last_results = np.zeros(8)
 
 	def Instructions(self):
 		'''
@@ -284,7 +285,9 @@ class HTWF_Estimation(object):
 
 		Returns
 	    -------
-		mse = Mean square errors of fit (float)
+		Mean square errors of fit (float), array with the three erros separately (1x3 np.array)
+
+		Order: firm distribution error, wage fit error, profit fit error
 
 		'''
 		# Check data is in!
@@ -369,9 +372,7 @@ class HTWF_Estimation(object):
 
 		mse_theta = np.sum(theta_err)
 
-		print 'errors:',mse_theta, mse_pi, mse_w
-
-		return mse_theta + mse_pi + mse_w
+		return mse_theta + mse_pi + mse_w, np.array([mse_theta, mse_w, mse_pi])
 
 	def Areureadyforthis(self):
 		'''
@@ -434,7 +435,7 @@ class HTWF_Estimation(object):
 							try: 
 								sol = self.Solve_Model(F_params, grid_points*1.5, 'lsoda', guess, tol_i)
 							except AssertionError, e:
-								print "OK JUST LEAVE IT", params, "error:", e
+								print "K.", params, "error:", e
 								return 400000.00
 				except ValueError, e:
 					print "Wrong assortativity ", params, e
@@ -447,11 +448,36 @@ class HTWF_Estimation(object):
 			return 4000000.00
 
 
-		# 4. Calculate and return			 	
+		# 4. Calculate and return				 	
 		functions_model = sol
-		mse = self.Calculate_MSE(functions_model)
+		output = self.Calculate_MSE(functions_model)
+		mse = output[0]
+		sol_path = np.hstack((np.array(params),output[1]))
+		sol_path = np.hstack((sol_path, mse))
+		self.last_results = np.vstack((self.last_results,sol_path))
 		print mse, params
 		return mse
+
+	def write_solution_path(self):
+		'''
+		Stores the solution path over multiple calls of StubbornObjectiveFunction in a csv file.
+
+		Returns:
+		--------
+		A csv file called 'results' with the path from the solver.
+		The rder of columns is:
+
+		omega_A, omega_B, sigma, Big_A, firm size distribution error, wages error, profits error, total error
+
+		The first row is just zeros.
+		'''
+		self.last_results.tofile('results.csv',sep=',',format='%10.5f')
+
+	def reset_solution_path(self):
+		'''
+		Resets the minimizer solution path in self.last_results. To be called after a minimization routine to clean cache.
+		'''
+		self.last_results = np.zeros(8)
 
 	def get_cdf(self,thetas_fm,xs_fm):
 		'''
@@ -505,8 +531,8 @@ class HTWF_Estimation(object):
 		if len(self.data)==3:
 			theta, wage, profit = self.data
 		else:
-			theta, wage, profit,weights = self.data
-
+			theta, wage, profit, weights = self.data
+			
 		cdf_theta_data = []
 		r = 0.0
 		for i in range(len(theta)):
@@ -552,11 +578,7 @@ class HTWF_Estimation(object):
 		err_mesg = ("Need to solve the model first!")
 		assert type(self.current_sol) != None, err_mesg
 		# Uncompress data
-		if len(self.data)==3:
-			theta, wage, profit = self.data
-		else:
-			theta, wage, profit,weights = self.data
-			
+		theta, wage, profit = self.data
 		cdf_theta_data = []
 		r = 0.0
 		for i in range(len(theta)):
