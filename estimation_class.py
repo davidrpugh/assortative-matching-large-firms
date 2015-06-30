@@ -415,7 +415,10 @@ class HTWF_Estimation(object):
 		# 3. Solve the model
 		try:
 			sol = self.Solve_Model(F_params, grid_points, 'lsoda', guess, tol_i)		
-		except AssertionError:
+		except AssertionError ,e:
+			if e=='Failure! Need to increase initial guess for upper bound on firm size!':
+				guess = guess * 10
+				print guess
 			try: 
 				sol = self.Solve_Model(F_params, grid_points, 'vode', guess, tol_i)
 			except AssertionError:
@@ -433,9 +436,16 @@ class HTWF_Estimation(object):
 							except AssertionError, e:
 								print "OK JUST LEAVE IT", params, "error:", e
 								return 400000.00
+				except ValueError, e:
+					print "Wrong assortativity ", params, e
+					return 4000000.00
+			except ValueError, e:
+				print "Wrong assortativity ", params, e
+				return 4000000.00
 		except ValueError, e:
 			print "Wrong assortativity ", params, e
 			return 4000000.00
+
 
 		# 4. Calculate and return			 	
 		functions_model = sol
@@ -492,7 +502,11 @@ class HTWF_Estimation(object):
 		err_mesg = ("Need to import data first!")
 		assert self.data != None, err_mesg
 		# Uncompress data
-		theta, wage, profit = self.data
+		if len(self.data)==3:
+			theta, wage, profit = self.data
+		else:
+			theta, wage, profit,weights = self.data
+
 		cdf_theta_data = []
 		r = 0.0
 		for i in range(len(theta)):
@@ -538,7 +552,11 @@ class HTWF_Estimation(object):
 		err_mesg = ("Need to solve the model first!")
 		assert type(self.current_sol) != None, err_mesg
 		# Uncompress data
-		theta, wage, profit = self.data
+		if len(self.data)==3:
+			theta, wage, profit = self.data
+		else:
+			theta, wage, profit,weights = self.data
+			
 		cdf_theta_data = []
 		r = 0.0
 		for i in range(len(theta)):
