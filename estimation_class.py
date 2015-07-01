@@ -62,6 +62,8 @@ class HTWF_Estimation(object):
 		self.current_sol = None
 		self.last_results = np.zeros(8)
 
+		self.error = 4000000.0
+
 	def Instructions(self):
 		'''
 		Prints the instructions of the HTWF_Estimation class.
@@ -212,7 +214,7 @@ class HTWF_Estimation(object):
 		'''
 	    	return np.sqrt(2)*np.exp(-(-self.x_pam[0] + np.log(x))**2/(2*self.x_pam[1]**2))/(np.sqrt(np.pi)*x*self.x_pam[1])
 
-	def Solve_Model(self, F_params, N_knots, intg, ini, tolerance):
+	def Solve_Model(self, F_params, N_knots, knots, intg, ini, tolerance):
 		"""
 		Function that solves the sorting model and returns functions mu(x), theta(x), w(x).
 
@@ -250,7 +252,7 @@ class HTWF_Estimation(object):
 
 		solver = shooting.ShootingSolver(model=modelA)
 		''' 1.Solve the Model '''
-		solver.solve(ini, tol=tolerance, number_knots=N_knots, integrator=intg)
+		solver.solve(ini, tol=tolerance, number_knots=N_knots, knots=knots, integrator=intg)
 		
 		''' 2.Check it is truly solved '''
 		err_mesg = ("Fail to solve!")
@@ -386,7 +388,7 @@ class HTWF_Estimation(object):
 		if self.F != None and self.workers != None and self.firms != None and self.data != None:
 			self.ready = True
 
-	def StubbornObjectiveFunction(self, params, grid_points, tol_i, guess):
+	def StubbornObjectiveFunction(self, params, N_points, grid, tol_i, guess):
 		"""
 		Calculates the sum of squared errors from the model with given parameters.
 
@@ -415,45 +417,53 @@ class HTWF_Estimation(object):
 
 		# 3. Solve the model
 		try:
-			sol = self.Solve_Model(F_params, grid_points, 'lsoda', guess, tol_i)		
+			sol = self.Solve_Model(F_params, N_points, grid, 'lsoda', guess, tol_i)		
 		except AssertionError ,e:
 			if e=='Failure! Need to increase initial guess for upper bound on firm size!':
 				guess = guess * 10
 				print guess
 			try: 
-				sol = self.Solve_Model(F_params, grid_points, 'vode', guess, tol_i)
+				sol = self.Solve_Model(F_params, N_points, grid, 'vode', guess, tol_i)
 			except AssertionError:
 				try: 
-					sol = self.Solve_Model(F_params, grid_points, 'lsoda', guess*100.0, tol_i)					 
+					sol = self.Solve_Model(F_params, N_points, grid, 'lsoda', guess*100.0, tol_i)					 
 				except AssertionError:
 					try: 
-						sol = self.Solve_Model(F_params, grid_points, 'lsoda', guess/100.0, tol_i)
+						sol = self.Solve_Model(F_params, N_points, grid, 'lsoda', guess/100.0, tol_i)
 					except AssertionError:
 						try:
-							sol = self.Solve_Model(F_params, grid_points, 'lsoda', guess, tol_i*10)
+							sol = self.Solve_Model(F_params, N_points, grid, 'lsoda', guess, tol_i*10)
 						except AssertionError:
-							try: 
-								sol = self.Solve_Model(F_params, grid_points*1.5, 'lsoda', guess, tol_i)
-							except AssertionError, e:
+							if N_points is not None:
+								try: 
+									sol = self.Solve_Model(F_params, N_points*1.5, grid,'lsoda', guess, tol_i)
+								except AssertionError, e:
+									print "K.", params, "error:", e
+									self.error = self.error*1.2
+									return self.error
+							else:
 								print "K.", params, "error:", e
-								return 400000.00
+								self.error = self.error*1.2
+								return self.error
 				except ValueError, e:
 					print "Wrong assortativity ", params, e
-					return 4000000.00
+					self.error = self.error*1.2
+					return self.error
 			except ValueError, e:
 				print "Wrong assortativity ", params, e
-				return 4000000.00
+				self.error = self.error*1.2
+				return self.error
 		except ValueError, e:
 			print "Wrong assortativity ", params, e
-			return 4000000.00
+			self.error = self.error*1.2
+			return self.error
 
 
 		# 4. Calculate and return				 	
 		functions_model = sol
 		output = self.Calculate_MSE(functions_model)
 		mse = output[0]
-		sol_path = np.hstack((np.array(params),output[1]))
-		sol_path = np.hstack((sol_path, mse))
+		sol_path = np.hstack((np.array(params),output[1], mse))
 		self.last_results = np.vstack((self.last_results,sol_path))
 		print mse, params
 		return mse
