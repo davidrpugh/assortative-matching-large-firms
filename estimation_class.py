@@ -588,7 +588,10 @@ class HTWF_Estimation(object):
 		err_mesg = ("Need to solve the model first!")
 		assert type(self.current_sol) != None, err_mesg
 		# Uncompress data
-		theta, wage, profit = self.data
+		if len(self.data)==3:
+			theta, wage, profit = self.data
+		else:
+			theta, wage, profit, weights = self.data
 		cdf_theta_data = []
 		r = 0.0
 		for i in range(len(theta)):
