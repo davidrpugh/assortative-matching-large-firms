@@ -4,12 +4,10 @@ Solves a model using forward shooting.
 @author : David R. Pugh
 
 """
-from __future__ import division
 import numpy as np
 import pandas as pd
 from quantecon import ivp
 import sympy as sym
-
 
 import solvers
 
@@ -266,28 +264,7 @@ class ShootingSolver(solvers.Solver):
         rhs = self._numeric_system(x, V, *self.model.params.values()).ravel()
         return rhs
 
-    def _compute_step_sizes(self, number_knots, knots):
-        """Computes an array of implied step sizes given some knot sequence."""
-        # expected bounds on the knots sequence
-        x_lower = self.model.workers.lower
-        x_upper = self.model.workers.upper
-
-        if (number_knots is not None) and (knots is None):
-            step_size = (x_upper - x_lower) / (number_knots - 1)
-            step_sizes = np.repeat(step_size, number_knots - 1)
-        elif (number_knots is None) and (knots is not None):
-            #assert knots[0] == x_lower
-            #assert knots[-1] == x_upper
-            step_sizes = np.diff(knots, 1)
-        else:
-            raise ValueError("Either 'number_knots' or 'knots' must be specified!")
-        
-        if self.model.assortativity == 'positive':
-            step_sizes = step_sizes[::-1]
-
-        return step_sizes
-
-    def solve(self, guess_firm_size_upper, tol=1e-6, number_knots=100, knots=None,
+    def solve(self, guess_firm_size_upper, tol=1e-6, number_knots=100,
               integrator='dopri5', message=False, **kwargs):
         """
         Solve for assortative matching equilibrium.
@@ -333,14 +310,13 @@ class ShootingSolver(solvers.Solver):
         guess_firm_size = 0.5 * (firm_size_upper + firm_size_lower)
         self._reset_solution(guess_firm_size)
 
-        # get the array of step sizes
-        step_sizes = self._compute_step_sizes(number_knots, knots)
-        idx = 0
-        #assert step_sizes > 0
+        # step size insures that never step beyond x_lower
+        step_size = (x_upper - x_lower) / (number_knots - 1)
+        assert step_size > 0
 
         while self.ivp.successful():
 
-            self._update_solution(step_sizes[idx])
+            self._update_solution(step_size)
 
             if self._converged_workers(tol) and self._converged_firms(tol):
                 self._validate_solution(self._solution, tol)
@@ -353,7 +329,6 @@ class ShootingSolver(solvers.Solver):
                     mesg = ("Exhausted firms: initial guess of {} for firm " +
                             "size is too low.")
                     print(mesg.format(guess_firm_size))
-                idx = 0
                 firm_size_lower = guess_firm_size
 
             elif self._converged_workers(tol) and self._exhausted_firms(tol):
@@ -361,7 +336,6 @@ class ShootingSolver(solvers.Solver):
                     mesg = ("Exhausted firms: initial guess of {} for firm " +
                             "size was too low!")
                     print(mesg.format(guess_firm_size))
-                idx = 0
                 firm_size_lower = guess_firm_size
 
             elif self._converged_workers(tol) and (not self._exhausted_firms(tol)):
@@ -369,15 +343,14 @@ class ShootingSolver(solvers.Solver):
                     mesg = ("Exhausted workers: initial guess of {} for " +
                             "firm size is too high!")
                     print(mesg.format(guess_firm_size))
-                idx = 0 # reset step size
                 firm_size_upper = guess_firm_size
 
             else:
-            	idx += 1
                 continue
 
             guess_firm_size = self._update_initial_guess(firm_size_lower,
                                                          firm_size_upper)
+
             self._reset_solution(guess_firm_size)
 
             # reset solution should not be too close to guess_firm_size_upper!
