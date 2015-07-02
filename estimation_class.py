@@ -135,12 +135,12 @@ class HTWF_Estimation(object):
 	    Parameters
 	    -----
 
-	    file_name : (str) path and name of the csv file.
+	    file_name : 	(str) path and name of the csv file.
 	    ID (optional) : boolean, True if it contais ID in the first collunm
-	    weights : True if the data includes a weights column in the end
-	    logs: if the data is in logs (True) or in levels (False)
-	    yearly_w: (optional) boolean, True if the wages need to be "annualized". 
-		change_weight: (optional) boolean, True if data weights need to be "normalized". 
+	    weights : 		True if the data includes a weights column in the end
+	    logs: 			if the data is in logs (True) or in levels (False)
+	    yearly_w: 		(optional) boolean, True if the wages need to be "annualized". 
+		change_weight: 	(optional) boolean, True if data weights need to be "normalized". 
 
 	    Returns
 	    ------
@@ -224,21 +224,20 @@ class HTWF_Estimation(object):
 
 		Parameters
 	    ----------
-		F_params: Parameters of Fnc (dic)
-		N_knots: number of knots (int)
-		intg: a string with the integrator of preference (string)
-		ini: initial guess (float)
-		tolerance: tolerance for the solver (float)
-		ass: assortativity ('positive' or 'negative') (string)
+		F_params: 	Parameters of Fnc (dic)
+		N_knots: 	number of knots (int)
+		intg: 		a string with the integrator of preference (string)
+		ini: 		initial guess (float)
+		tolerance: 	tolerance for the solver (float)
+		ass: 		assortativity ('positive' or 'negative') (string)
 
 		Returns
 	    -------
-		A tutple consisting on: 
-			(theta(w) (scipy.interpolate.interpolate.interp1d), 
-			 theta(pi) (scipy.interpolate.interpolate.interp1d), 
-			 thetas from the model (np.array), 
-			 xs from the model(np.array))
-
+		A (1x4) tutple consisting on: 
+			(theta(w) (scipy.interpolate.interpolate.interp1d),  :	interpolated function of the solution ws and thetas
+			 theta(pi) (scipy.interpolate.interpolate.interp1d), :	interpolated function of the solution pis and thetas
+			 thetas from the model (np.array), 					 :  thetas from the solution (not sorted)
+			 xs from the model(np.array))						 :  gridpoints of the solution (not sorted)
 		"""
 		Fnc=self.F
 		workers= self.workers 
@@ -271,7 +270,7 @@ class HTWF_Estimation(object):
 		
 		return (w_theta, pi_theta, thetas, xs_fm)
 
-	def Calculate_MSE(self, functions_from_model,penalty=100):
+	def Calculate_MSE(self, functions_from_model,penalty_pw=100, penalty_cdf=100):
 		'''
 		Given some estimated shape distribution parameters, gives the mean square error related to
 		the data's fitted distribution.
@@ -283,7 +282,8 @@ class HTWF_Estimation(object):
 	    data:			        (1x4) tuple of ndarrays. Data points to calculate the mse Order: thetas, wages, profits and weights if using.
 		functions_from_model: 	(1x3) tuple of functions and data from the model solution. Order: theta(pi), w(pi), thetas from model, xs from model.
 								Functions must be executable (that is, input a float and return a float)
-		penalty :				Penalty for each observation out of the model range that appears in the data (int or float)		
+		penalty_pw :			(optional) Penalty for each observation (profits or wages) out of the model range that appears in the data (int or float)		
+		penalty_cdf :			(optional) Penalty for each observation (size cdf) out of the model range that appears in the data (int or float)
 
 		Returns
 	    -------
@@ -320,14 +320,14 @@ class HTWF_Estimation(object):
 			# For each wage observation out of range, penalty
 			if theta_w(np.exp(ws[i]))==-99.0:
 				#print 'w out of range'
-				w_err = np.hstack((w_err,penalty*weights[i]))	
+				w_err = np.hstack((w_err,penalty_pw*weights[i]))	
 			else:
 				w_hat = np.log(theta_w(np.exp(ws[i])))
 				w_err = np.hstack((w_err, (w_hat-thetas[i])**2*weights[i]))
 			# For each profit observation out of range, penalty
 			if theta_pi(np.exp(pis[i]))==-99.0:
 				#print 'pi out of range'			
-				pi_err = np.hstack((pi_err,penalty*weights[i]))
+				pi_err = np.hstack((pi_err,penalty_pw*weights[i]))
 			else:
 				pi_hat = np.log(theta_pi(np.exp(pis[i])))
 				pi_err = np.hstack((pi_err, (pi_hat-thetas[i])**2*weights[i]))
@@ -368,7 +368,7 @@ class HTWF_Estimation(object):
 		for i in range(len(pis)):
 			cdf_hat = cdf_theta_int(thetas[i])
 			if cdf_hat == -99.0:
-				theta_err = np.hstack((theta_err, penalty*weights[i]))
+				theta_err = np.hstack((theta_err, penalty_cdf*weights[i]))
 			else:
 				theta_err = np.hstack((theta_err, (cdf_hat-cdf_theta_data[i])**2))   #weighting not needed here because already in cdf
 
@@ -388,7 +388,7 @@ class HTWF_Estimation(object):
 		if self.F != None and self.workers != None and self.firms != None and self.data != None:
 			self.ready = True
 
-	def StubbornObjectiveFunction(self, params, N_points, grid, tol_i, guess):
+	def StubbornObjectiveFunction(self, params, N_points, grid, tol_i, guess, penalty_pw=100,penalty_cdf=100):
 		"""
 		Calculates the sum of squared errors from the model with given parameters.
 
@@ -396,20 +396,23 @@ class HTWF_Estimation(object):
 
 		Parameters:
 		-----------
-			(1x4) tuple containing: (omega_A, omega_B, sigma, Big_A) (all of them floats)
-			grid_points: number of points in the grid of xs (float or int)
-			tol_i: tolerance for the solver (float) 
-			guess: initial guess for upper firm size (float or int) 
+		params:			(1x4) tuple containing: (omega_A, omega_B, sigma, Big_A) (all of them floats)
+
+		grid_points: 	number of points in the grid of xs (float or int)
+		tol_i: 			tolerance for the solver (float) 
+		guess: 			initial guess for upper firm size (float or int)
+		penalty_pw :	Penalty for each observation (profits or wages) out of the model range that appears in the data (int or float)		
+		penalty_cdf :	Penalty for each observation (size cdf) out of the model range that appears in the data (int or float) 
 
 
 		Returns:
 		--------
-			Sum of squared residuals of theta(ws), theta(pis), cdf(theta).
+		Sum of squared residuals of theta(ws), theta(pis), cdf(theta).
 
 		"""
 		# 1. Check if F and data are stored correctly
 		self.Areureadyforthis()
-		err_mesg = 'You ar enot ready yet to go! Check you have imputed F and imported the data!'
+		err_mesg = 'You are not ready yet! Check you have imputed F and imported the data!'
 		assert self.ready
 
 		# 2. Unpack params
@@ -461,7 +464,7 @@ class HTWF_Estimation(object):
 
 		# 4. Calculate and return				 	
 		functions_model = sol
-		output = self.Calculate_MSE(functions_model)
+		output = self.Calculate_MSE(functions_model, penalty_pw=penalty_pw,penalty_cdf=penalty_cdf)
 		mse = output[0]
 		sol_path = np.hstack((np.array(params),output[1], mse))
 		self.last_results = np.vstack((self.last_results,sol_path))
