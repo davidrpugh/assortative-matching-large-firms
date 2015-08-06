@@ -4,6 +4,8 @@ Contains the base class for the solver.py module.
 @author : David R. Pugh
 
 """
+from __future__ import division
+
 import numpy as np
 import pandas as pd
 from scipy import special
@@ -124,7 +126,7 @@ class Solver(object):
 
     @property
     def _symbolic_mu_prime(self):
-        r"""Symbolic expression for the :math:`\mu'(x)`."""
+        """Symbolic expression for the :math:`\mu'(x)`."""
         return self.model.matching.mu_prime.subs(self._symbolic_change_of_vars)
 
     @property
@@ -371,7 +373,8 @@ class Solver(object):
             Residuals given the approximation :math:`\hat{\mu}(x)`.
 
         """
-        V = np.hstack((self.evaluate_mu(x), self.evaluate_theta(x)))
+        V = np.vstack((self.evaluate_mu(x)[np.newaxis, :],
+                       self.evaluate_theta(x)[np.newaxis, :]))
         residual = (self.evaluate_mu_prime(x) -
                     self.evaluate_rhs_mu_prime(x, V))
         return residual
@@ -392,7 +395,8 @@ class Solver(object):
             Residuals given the approximation :math:`\hat{\theta}(x)`.
 
         """
-        V = np.hstack((self.evaluate_mu(x), self.evaluate_theta(x)))
+        V = np.vstack((self.evaluate_mu(x)[np.newaxis, :],
+                       self.evaluate_theta(x)[np.newaxis, :]))
         residual = (self.evaluate_theta_prime(x) -
                     self.evaluate_rhs_theta_prime(x, V))
         return residual
